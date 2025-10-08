@@ -1,4 +1,4 @@
-// context/AuthContext.tsx
+// src/context/AuthContext.tsx
 
 'use client';
 
@@ -11,10 +11,16 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 // Define the shape of the user data stored in the context
 interface User {
   id: number;
-  name: string;
+  // NOTE: 'name' is often null in Laravel Sanctum responses; we rely on first_name/last_name
+  name: string | null; 
   email: string;
+  username: string; // Added username for identifier login flexibility
   is_superuser: boolean; // For /mushrif-admin access
   is_staff: boolean;     // For certain privileged actions
+  
+  // FIX: Added first_name and last_name properties to the interface
+  first_name: string | null;
+  last_name: string | null;
 }
 
 // Define the shape of the authentication context
@@ -50,11 +56,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        // FIX: Ensure storedUser is cast to the new User type
+        setUser(JSON.parse(storedUser)); 
       }
     } catch (error) {
       console.error('Error loading auth state from storage:', error);
-      // Fallback: Clear potentially corrupted storage
       localStorage.removeItem('authToken');
       localStorage.removeItem('authUser');
     } finally {

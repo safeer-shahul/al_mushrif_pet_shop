@@ -4,11 +4,14 @@
 import React, { useState } from 'react';
 
 interface LoginFormProps {
-  onSubmit: (email: string, password: string) => Promise<void>;
+  // Change parameter name to 'identifier' to match backend logic
+  onSubmit: (identifier: string, password: string) => Promise<void>;
+  emailLabel?: string; 
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ onSubmit }) => {
-  const [email, setEmail] = useState('');
+const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, emailLabel }) => {
+  // Use 'identifier' to store the combined email/username input
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,7 +19,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await onSubmit(email, password);
+      // Pass the identifier state to the onSubmit handler
+      await onSubmit(identifier, password); 
     } catch (error) {
       // Error handling is done in the parent page component
     } finally {
@@ -27,25 +31,26 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit }) => {
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-          Email address
+        {/* Updated label to reflect the email/username choice */}
+        <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          {emailLabel || 'Email or Username'} 
         </label>
         <div className="mt-1">
           <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
+            id="identifier"
+            name="identifier"
+            type="text" // Changed type from 'email' to 'text' for username support
+            autoComplete="username"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="block w-full px-3 py-2 placeholder-gray-400 border border-gray-300 rounded-md shadow-sm appearance-none focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 placeholder-gray-400 border border-gray-300 rounded-md shadow-sm appearance-none focus:outline-none focus:ring-primary focus:border-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Password
         </label>
         <div className="mt-1">
@@ -57,7 +62,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit }) => {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="block w-full px-3 py-2 placeholder-gray-400 border border-gray-300 rounded-md shadow-sm appearance-none focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            className="mt-1 block w-full px-3 py-2 placeholder-gray-400 border border-gray-300 rounded-md shadow-sm appearance-none focus:outline-none focus:ring-primary focus:border-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           />
         </div>
       </div>
@@ -67,8 +72,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit }) => {
         disabled={loading}
         className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
           loading 
-            ? 'bg-indigo-400 cursor-not-allowed' 
-            : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+            ? 'bg-primary/70 cursor-not-allowed' 
+            : 'bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary'
         }`}
       >
         {loading ? 'Processing...' : 'Sign in'}

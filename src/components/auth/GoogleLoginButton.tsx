@@ -1,32 +1,54 @@
 // src/components/auth/GoogleLoginButton.tsx
 'use client';
 
-import React from 'react';
-
-// Assuming the Laravel backend has a route like /api/auth/google/redirect
-const LARAVEL_GOOGLE_REDIRECT_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}auth/google/redirect`;
+import React, { useState } from 'react';
+import { FaGoogle } from 'react-icons/fa';
+// IMPORT THE NEW API UTILITY
+import { initiateGoogleLogin } from '@/utils/authApi'; 
 
 interface GoogleLoginButtonProps {
   type: 'customer' | 'admin';
 }
 
 const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({ type }) => {
-  
-  // Note: The Laravel backend should handle the OAuth flow and redirect back to /auth/callback
-  const startGoogleLogin = () => {
-    // We append the type to the state/query parameter so Laravel knows which login flow to use (e.g., check staff status)
-    const redirectUrl = `${LARAVEL_GOOGLE_REDIRECT_URL}?type=${type}`;
-    window.location.href = redirectUrl;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Use the centralized helper function to get the redirect URL
+      const redirectUrl = await initiateGoogleLogin();
+
+      // Append the 'type' to the final redirect URL that goes to Google/Laravel
+      // This is a common way to signal the backend which frontend flow initiated the OAuth.
+      const finalRedirectUrl = `${redirectUrl}&state=type=${type}`; 
+      
+      // Redirect the user to the Google authorization page
+      window.location.href = finalRedirectUrl;
+
+    } catch (err: any) {
+      console.error('Google login initiation error:', err.message);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <button
       onClick={startGoogleLogin}
-      className="w-full flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+      disabled={loading}
+      className={`w-full flex justify-center items-center py-2 px-4 border rounded-md shadow-sm text-sm font-medium transition ${
+        loading 
+          ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300' 
+          : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary'
+      }`}
     >
-      {/* Placeholder for a Google icon */}
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 48 48">...</svg> 
-      Sign in with Google {type === 'admin' ? '(Admin/Staff)' : ''}
+      <FaGoogle className="w-4 h-4 mr-2" />
+      {loading ? 'Connecting...' : `Sign in with Google ${type === 'admin' ? '(Staff)' : ''}`}
+      {error && <span className="ml-2 text-red-500">{error}</span>}
     </button>
   );
 };

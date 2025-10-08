@@ -1,26 +1,33 @@
+/* src/app/globals.css */
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+|--------------------------------------------------------------------------
+| Custom Tailwind v4 Theme Configuration
+|--------------------------------------------------------------------------
+|
+| Define custom colors for primary branding.
+|
+*/
+@theme {
+  --color-primary: #003a8c; /* Dark Blue */
+  --color-primary-light: #006ef5; /* Bright Blue Accent */
+  
+  /* We will also define a deep gray for text on light backgrounds */
+  --color-text-dark: #1f2937;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  /* Enforce a light theme background and text color globally */
+  body {
+    background-color: var(--color-gray-50); /* Very light gray background for the app container */
+    color: var(--color-text-dark);          /* Dark text for readability */
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Reset all elements to a clean, light mode default */
+  * {
+    /* Remove any default dark mode overrides */
+    --tw-bg-opacity: 1; 
+  }
 }
