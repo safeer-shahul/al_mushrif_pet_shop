@@ -8,17 +8,14 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 // 1. Types
 // ------------------------------------
 
-// Define the shape of the user data stored in the context
-interface User {
+// FIX: ADD 'export' HERE
+export interface User {
   id: number;
-  // NOTE: 'name' is often null in Laravel Sanctum responses; we rely on first_name/last_name
   name: string | null; 
   email: string;
-  username: string; // Added username for identifier login flexibility
-  is_superuser: boolean; // For /mushrif-admin access
-  is_staff: boolean;     // For certain privileged actions
-  
-  // FIX: Added first_name and last_name properties to the interface
+  username: string;
+  is_superuser: boolean;
+  is_staff: boolean;
   first_name: string | null;
   last_name: string | null;
 }
@@ -56,7 +53,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (storedToken && storedUser) {
         setToken(storedToken);
-        // FIX: Ensure storedUser is cast to the new User type
         setUser(JSON.parse(storedUser)); 
       }
     } catch (error) {

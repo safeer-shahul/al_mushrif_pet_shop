@@ -1,18 +1,26 @@
 // src/app/(auth)/mushrif-admin-login/page.tsx
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import LoginForm from '@/components/auth/LoginForm';
 import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
-// IMPORT THE NEW API UTILITY
 import { loginUser } from '@/utils/authApi';
 
 const AdminLoginPage: React.FC = () => {
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+
+  // NEW: Check for errors coming back from Google OAuth redirect (Laravel)
+  useEffect(() => {
+    const queryError = searchParams.get('error');
+    if (queryError) {
+      setError(decodeURIComponent(queryError));
+    }
+  }, [searchParams]);
 
   const handleLoginSuccess = (user: any, token: string) => {
     // Crucial check: only allow superuser/staff to proceed
@@ -20,23 +28,19 @@ const AdminLoginPage: React.FC = () => {
       login(user, token);
       router.push('/mushrif-admin'); // Redirect to the admin dashboard root
     } else {
-      // Deny access and redirect non-staff users
+      // Deny access and redirect non-staff users (Failsafe for traditional login)
       setError('Access Denied: Only staff and superusers can log in here. Redirecting to customer login...');
+      // In a real application, you might also call useAuth().logout() here.
       setTimeout(() => router.replace('/login'), 3000); 
     }
   };
 
-  // REFACTORED: Now uses the centralized loginUser function
   const handleSubmit = async (identifier: string, password: string) => {
     setError(null);
     try {
       const { user, access_token } = await loginUser(identifier, password);
-      
-      // Perform the local role check based on returned user data
       handleLoginSuccess(user, access_token);
-
     } catch (err: any) {
-      // Catch the formatted error message from loginUser
       console.error('Admin Login error:', err.message);
       setError(err.message);
     }

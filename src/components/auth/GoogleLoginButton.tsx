@@ -3,7 +3,6 @@
 
 import React, { useState } from 'react';
 import { FaGoogle } from 'react-icons/fa';
-// IMPORT THE NEW API UTILITY
 import { initiateGoogleLogin } from '@/utils/authApi'; 
 
 interface GoogleLoginButtonProps {
@@ -18,15 +17,13 @@ const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({ type }) => {
     setLoading(true);
     setError(null);
     try {
-      // Use the centralized helper function to get the redirect URL
       const redirectUrl = await initiateGoogleLogin();
 
-      // Append the 'type' to the final redirect URL that goes to Google/Laravel
-      // This is a common way to signal the backend which frontend flow initiated the OAuth.
-      const finalRedirectUrl = `${redirectUrl}&state=type=${type}`; 
+      // FIX: Append the 'type' parameter to the URL sent to Laravel's redirectToGoogle endpoint
+      const finalRedirectUrl = `${redirectUrl}?type=${type}`; 
       
-      // Redirect the user to the Google authorization page
-      window.location.href = finalRedirectUrl;
+      // Redirect the user to the Google authorization page (which Laravel's endpoint returns)
+      window.location.href = finalRedirectUrl; 
 
     } catch (err: any) {
       console.error('Google login initiation error:', err.message);

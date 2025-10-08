@@ -71,7 +71,8 @@ export const initiateGoogleLogin = async (): Promise<string> => {
     const API_REDIRECT_ENDPOINT = '/auth/google/redirect';
     
     try {
-        const response = await publicClient.get(API_REDIRECT_ENDPOINT);
+        // Send a GET request to the API to get the external redirect URL
+        const response = await publicClient.get(API_REDIRECT_ENDPOINT); 
         const redirectUrl = response.data.redirect_url;
         
         if (!redirectUrl) {
