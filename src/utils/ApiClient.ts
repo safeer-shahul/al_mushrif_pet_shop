@@ -6,7 +6,6 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } f
 // 1. Constants and Base Client
 // ------------------------------------
 
-// Use environment variables for configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const SANCTUM_CSRF_URL = process.env.NEXT_PUBLIC_SANCTUM_CSRF_URL;
 
@@ -21,7 +20,7 @@ const publicClient: AxiosInstance = axios.create({
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Crucial for Laravel Sanctum cookie-based CSRF
+  withCredentials: true,
 });
 
 // ------------------------------------
@@ -30,7 +29,6 @@ const publicClient: AxiosInstance = axios.create({
 
 /**
  * Fetches the CSRF cookie from the Laravel backend.
- * This must be called before the first POST/PUT/DELETE request.
  */
 export const getCsrfToken = async (): Promise<void> => {
   if (!SANCTUM_CSRF_URL) {
@@ -38,12 +36,10 @@ export const getCsrfToken = async (): Promise<void> => {
     return;
   }
   try {
-    // The call to the Sanctum endpoint sets the XSRF-TOKEN cookie in the browser
     await publicClient.get(SANCTUM_CSRF_URL);
     console.log('CSRF cookie successfully fetched.');
   } catch (error) {
     console.error('Failed to fetch CSRF cookie:', error);
-    // Depending on the app's requirements, you might want to throw or return false
     throw new Error('CSRF token acquisition failed. Cannot proceed with state-changing requests.');
   }
 };
@@ -52,31 +48,51 @@ export const getCsrfToken = async (): Promise<void> => {
 // 3. Authenticated Client Factory
 // ------------------------------------
 
+// Define a type for custom configuration
+interface AuthClientConfig {
+    headers?: Record<string, string | number | boolean>;
+    omitContentType?: boolean;
+}
+
 /**
  * Creates an Axios instance configured with the Authorization header.
- * @param token The JWT token to include in the Authorization header.
+ * FIX: Allow custom headers to override Content-Type for FormData.
  */
-export const createAuthenticatedClient = (token: string): AxiosInstance => {
+export const createAuthenticatedClient = (token: string, config?: AuthClientConfig): AxiosInstance => {
+  
+  const defaultHeaders: Record<string, string> = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json', // Default to JSON
+    'Authorization': `Bearer ${token}`,
+  };
+
+  const finalHeaders: AxiosRequestConfig['headers'] = {
+      ...defaultHeaders,
+      ...config?.headers, // Merge custom headers
+  };
+
+  if (config?.omitContentType) {
+      delete finalHeaders['Content-Type'];
+  }
+
   const client = axios.create({
     baseURL: API_BASE_URL,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`, // JWT token for authentication
-    },
-    withCredentials: true, // Still needed for Sanctum's cookie-based CSRF protection
+    headers: finalHeaders, // Use the finalized headers
+    withCredentials: true,
   });
 
-  // Optional: Add an interceptor to handle token expiration/401 errors globally
+  // Optional: Add an interceptor to handle token expiration/401/403 errors globally
   client.interceptors.response.use(
     (response: AxiosResponse) => response,
     (error: AxiosError) => {
-      if (error.response && error.response.status === 401) {
-        // Handle unauthorized error (e.g., token expired, revoked)
-        // NOTE: A proper implementation would trigger `useAuth().logout()` here.
-        // Since we cannot use hooks outside components, this is just a log:
-        console.error('Authentication error (401). Token might be expired.');
-        // If you were using a library like Zustand, you could call a store action here.
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        // --- Interceptor FIX: Handle 401 (Unauthorized) and 403 (Forbidden/Role Check failed) ---
+        console.error(`Authorization error (${error.response.status}). Token might be expired or user role insufficient.`);
+        
+        // NOTE: In a real application, you'd use a mechanism (like a global state library or event emitter) 
+        // to call useAuth().logout() and redirect the user. 
+        // For now, we reject the promise, allowing the calling component to handle it,
+        // but log the crucial error here.
       }
       return Promise.reject(error);
     }
@@ -93,20 +109,17 @@ import { useAuth } from '@/context/AuthContext';
 
 /**
  * Custom hook to get the appropriate Axios client based on authentication status.
- * Automatically uses the JWT token for authenticated requests.
+ * @param {AuthClientConfig} config Optional configuration, e.g., to omit Content-Type.
  * @returns {AxiosInstance} An Axios instance configured for API requests.
  */
-export const useApiClient = (): AxiosInstance => {
+export const useApiClient = (config?: AuthClientConfig): AxiosInstance => { 
   const { token } = useAuth();
   
-  // If a token exists, return the authenticated client
   if (token) {
-    return createAuthenticatedClient(token);
+    return createAuthenticatedClient(token, config); 
   }
   
-  // If no token, return the public client
   return publicClient;
 };
 
-// Export the public client for unauthenticated routes that don't need the hook
 export { publicClient };

@@ -1,143 +1,206 @@
 // src/services/admin/categoryService.ts
 
-import { useApiClient, getCsrfToken } from '@/utils/ApiClient';
-import { AnyCategory, CategoryIndexResponse } from '@/types/category';
+import { useApiClient, getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
+import { useAuth } from '@/context/AuthContext'; // Needed to access token outside the useApiClient hook flow
+import { RootCategory, SubCategory, RootCategoryIndexResponse, SubCategoryIndexResponse } from '@/types/category';
+import { useCallback } from 'react';
 
-const CATEGORY_API_ENDPOINT = '/admin/categories';
+const ROOT_CATEGORY_API_ENDPOINT = '/admin/root-categories';
+const SUB_CATEGORY_API_ENDPOINT = '/admin/sub-categories';
 
 /**
  * Custom hook to encapsulate all Category API operations.
  */
 export const useCategoryService = () => {
-  const api = useApiClient();
+    const { token } = useAuth(); // Get token from AuthContext
+    // The base URL for storage paths (assuming NEXT_PUBLIC_API_URL is the domain, e.g., http://localhost:8000)
+    const storagePrefix = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + '/storage/';
 
-  /**
-   * Fetches all Root and Sub Categories for the Admin list.
-   */
-  const fetchAllCategories = async (): Promise<AnyCategory[]> => {
-    try {
-      const response = await api.get<CategoryIndexResponse>(CATEGORY_API_ENDPOINT);
-
-      // Handle 204 No Content / Empty Response
-      if (response.status === 204 || !response.data) {
-        console.log('No categories found (empty response)');
-        return [];
-      }
-
-      // Safely destructure with defaults for empty arrays
-      const { root_categories = [], sub_categories = [] } = response.data || {};
-
-      // Check if the response has the expected structure
-      if (!Array.isArray(root_categories) || !Array.isArray(sub_categories)) {
-        console.warn('Unexpected API response structure:', response.data);
-        return [];
-      }
-
-      // Return empty array if both are empty
-      if (root_categories.length === 0 && sub_categories.length === 0) {
-        console.log('No categories found in database');
-        return [];
-      }
-
-      // Consolidate and normalize for the frontend type
-      const rootCats = root_categories.map(c => ({ 
-          ...c, 
-          type: 'root' as const,
-          display_name: c.cat_name 
-      })) as AnyCategory[];
-
-      const subCats = sub_categories.map(c => ({ 
-          ...c, 
-          type: 'sub' as const,
-          display_name: c.sub_cat_name 
-      })) as AnyCategory[];
-
-      return [...rootCats, ...subCats];
-
-    } catch (error: any) {
-      // Check if it's a 404 or network error
-      if (error.response?.status === 404) {
-        console.log('Categories endpoint not found');
-        return [];
-      }
-      
-      console.error('API Error in fetchAllCategories:', error);
-      throw new Error(error.response?.data?.message || 'Failed to load category data from the API.');
-    }
-  };
-  
-  /**
-   * Fetches a single category (Root or Sub) by ID.
-   */
-  const fetchCategoryById = async (id: string): Promise<AnyCategory> => {
-    try {
-        const response = await api.get<{ category: AnyCategory }>(`${CATEGORY_API_ENDPOINT}/${id}`);
+    /**
+     * Utility function to get the correct Axios client instance.
+     * Crucial for file uploads: tells Axios to omit Content-Type header so it defaults to multipart/form-data.
+     * * @param isFileUpload If true, configures the client for FormData (multipart/form-data).
+     */
+    const getClient = useCallback((isFileUpload: boolean = false) => {
+        const config = isFileUpload ? { omitContentType: true } : {};
         
-        if (!response.data?.category) {
-            throw new Error('Invalid category response');
+        if (token) {
+            return createAuthenticatedClient(token, config); 
         }
+        return publicClient; 
+    }, [token]); 
+
+    // --- ROOT CATEGORY OPERATIONS --------------------------------------
+
+    const fetchAllRootCategories = async (): Promise<RootCategory[]> => {
+        const api = getClient(false);
+        try {
+            const response = await api.get<RootCategoryIndexResponse>(ROOT_CATEGORY_API_ENDPOINT);
+            return response.data?.root_categories || [];
+        } catch (error: any) {
+            console.error('API Error in fetchAllRootCategories:', error);
+            throw new Error(error.response?.data?.message || 'Failed to load root category data from the API.');
+        }
+    };
+    
+    const fetchRootCategoryById = useCallback(async (id: string): Promise<RootCategory> => {
+        const api = getClient(false);
+        try {
+            const response = await api.get<{ category: RootCategory }>(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`);
+            return response.data?.category;
+        } catch (error: any) {
+            console.error(`API Error in fetchRootCategoryById for ID ${id}:`, error);
+            throw new Error(error.response?.data?.message || 'Failed to load root category details.');
+        }
+    }, [getClient]);
+
+    /** Handles FormData for file upload (POST). */
+    const createRootCategory = async (formData: FormData) => {
+        const api = getClient(true);
+        try {
+            await getCsrfToken();
+            // POST request with FormData (Content-Type automatically set to multipart/form-data)
+            const response = await api.post(ROOT_CATEGORY_API_ENDPOINT, formData); 
+            return response.data;
+        } catch (error: any) {
+            console.error('API Error in createRootCategory:', error);
+            throw new Error(error.response?.data?.message || 'Failed to create category.');
+        }
+    };
+
+    /** Handles FormData and PUT simulation via POST for file upload. */
+    const updateRootCategory = useCallback(async (id: string, formData: FormData) => {
+        const api = getClient(true);
+        try {
+            await getCsrfToken();
+            formData.append('_method', 'PUT'); 
+            const response = await api.post(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`, formData); 
+            return response.data;
+        } catch (error: any) {
+            console.error(`API Error in updateRootCategory for ID ${id}:`, error);
+            throw new Error(error.response?.data?.message || 'Failed to update category.');
+        }
+    }, [getClient]);
+
+    const deleteRootCategory = async (id: string) => {
+        const api = getClient(false);
+        try {
+            await getCsrfToken();
+            const response = await api.delete(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`);
+            return response.data;
+        } catch (error: any) {
+            console.error(`API Error in deleteRootCategory for ID ${id}:`, error);
+            throw new Error(error.response?.data?.message || 'Failed to delete category.');
+        }
+    };
+
+
+    // --- SUB CATEGORY OPERATIONS -----------------------------------------
+    
+    const fetchAllSubCategories = async (): Promise<SubCategory[]> => {
+        const api = getClient(false);
+        try {
+            const response = await api.get<SubCategoryIndexResponse>(SUB_CATEGORY_API_ENDPOINT);
+            return response.data?.sub_categories || [];
+        } catch (error: any) {
+            console.error('API Error in fetchAllSubCategories:', error);
+            throw new Error(error.response?.data?.message || 'Failed to load sub category data from the API.');
+        }
+    };
+    
+    const fetchSubCategoryById = async (id: string): Promise<SubCategory> => {
+        const api = getClient(false);
+        try {
+            const response = await api.get<{ category: SubCategory }>(`${SUB_CATEGORY_API_ENDPOINT}/${id}`);
+            return response.data?.category;
+        } catch (error: any) {
+            console.error(`API Error in fetchSubCategoryById for ID ${id}:`, error);
+            throw new Error(error.response?.data?.message || 'Failed to load sub category details.');
+        }
+    };
+
+    /** Handles FormData for file upload (POST). */
+    const createSubCategory = async (formData: FormData) => {
+        const api = getClient(true);
+        try {
+            await getCsrfToken();
+            const response = await api.post(SUB_CATEGORY_API_ENDPOINT, formData);
+            return response.data;
+        } catch (error: any) {
+            console.error('API Error in createSubCategory:', error);
+            throw new Error(error.response?.data?.message || 'Failed to create sub category.');
+        }
+    };
+
+    /** Handles FormData and PUT simulation via POST for file upload. */
+    const updateSubCategory = async (id: string, formData: FormData) => {
+        const api = getClient(true);
+        try {
+            await getCsrfToken();
+            formData.append('_method', 'PUT'); // Laravel method spoofing
+            const response = await api.post(`${SUB_CATEGORY_API_ENDPOINT}/${id}`, formData); 
+            return response.data;
+        } catch (error: any) {
+            console.error(`API Error in updateSubCategory for ID ${id}:`, error);
+            throw new Error(error.response?.data?.message || 'Failed to update sub category.');
+        }
+    };
+    
+    const deleteSubCategory = async (id: string) => {
+        const api = getClient(false);
+        try {
+            await getCsrfToken();
+            const response = await api.delete(`${SUB_CATEGORY_API_ENDPOINT}/${id}`);
+            return response.data;
+        } catch (error: any) {
+            console.error(`API Error in deleteSubCategory for ID ${id}:`, error);
+            throw new Error(error.response?.data?.message || 'Failed to delete sub category.');
+        }
+    };
+
+
+    // --- UTILITIES ---
+
+    // Utility function to get all categories for parent dropdowns in SubCategory forms
+    const fetchAllParentCategories = async (): Promise<(RootCategory | SubCategory)[]> => {
+        // Need a client here too
+        const api = getClient(false); 
+
+        // Fetching all roots and all subs to populate the parent dropdown selector
+        const [rootResponse, subResponse] = await Promise.all([
+            api.get<RootCategoryIndexResponse>(ROOT_CATEGORY_API_ENDPOINT),
+            api.get<SubCategoryIndexResponse>(SUB_CATEGORY_API_ENDPOINT)
+        ]);
         
-        // Normalize the category's name fields for consistent frontend use
-        const categoryData = response.data.category;
-        const normalizedData = {
-            ...categoryData,
-            cat_name: 'cat_name' in categoryData ? categoryData.cat_name : ('sub_cat_name' in categoryData ? categoryData.sub_cat_name : ''),
-        } as AnyCategory;
+        const roots = rootResponse.data?.root_categories || [];
+        const subs = subResponse.data?.sub_categories || [];
         
-        return normalizedData;
-    } catch (error: any) {
-        console.error(`API Error in fetchCategoryById for ID ${id}:`, error);
-        throw new Error(error.response?.data?.message || 'Failed to load category details.');
-    }
-  };
+        // Combine them for the dropdown
+        return [...roots, ...subs] as (RootCategory | SubCategory)[]; 
+    };
+    
+    // Utility to prepend storage path for image display
+    const getStorageUrl = useCallback((path: string | null) => {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+        return storagePrefix + path;
+    }, [storagePrefix]);
 
-  /**
-   * Creates a new Root or Sub Category.
-   */
-  const createCategory = async (data: any) => {
-    try {
-      await getCsrfToken();
-      const response = await api.post(CATEGORY_API_ENDPOINT, data);
-      return response.data;
-    } catch (error: any) {
-      console.error('API Error in createCategory:', error);
-      throw new Error(error.response?.data?.message || 'Failed to create category.');
-    }
-  };
-  
-  /**
-   * Updates an existing Category.
-   */
-  const updateCategory = async (id: string, data: any) => {
-    try {
-      await getCsrfToken();
-      const response = await api.put(`${CATEGORY_API_ENDPOINT}/${id}`, data);
-      return response.data;
-    } catch (error: any) {
-      console.error(`API Error in updateCategory for ID ${id}:`, error);
-      throw new Error(error.response?.data?.message || 'Failed to update category.');
-    }
-  };
 
-  /**
-   * Deletes a Category (Root or Sub).
-   */
-  const deleteCategory = async (id: string) => {
-    try {
-      await getCsrfToken();
-      const response = await api.delete(`${CATEGORY_API_ENDPOINT}/${id}`);
-      return response.data;
-    } catch (error: any) {
-      console.error(`API Error in deleteCategory for ID ${id}:`, error);
-      throw new Error(error.response?.data?.message || 'Failed to delete category.');
-    }
-  };
-
-  return {
-    fetchAllCategories,
-    fetchCategoryById,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-  };
+    return {
+        fetchAllRootCategories,
+        fetchRootCategoryById,
+        createRootCategory,
+        updateRootCategory,
+        deleteRootCategory,
+        
+        fetchAllSubCategories,
+        fetchSubCategoryById,
+        createSubCategory,
+        updateSubCategory,
+        deleteSubCategory,
+        
+        fetchAllParentCategories, 
+        getStorageUrl
+    };
 };
