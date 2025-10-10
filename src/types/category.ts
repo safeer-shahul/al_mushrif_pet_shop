@@ -19,11 +19,13 @@ export interface RootCategory extends BaseCategory {
 
 export interface SubCategory extends BaseCategory {
     sub_cat_name: string; 
-    sub_cat_image: string | null; // Use the Sub fields
+    sub_cat_image: string | null;
     sub_cat_description: string | null;
     is_root_category: boolean; 
     parent_id: string;
-    parent?: RootCategory | SubCategory; // For display
+    // NEW FIELDS from backend propagation
+    parent_display_name?: string; 
+    parent_type?: 'root' | 'sub';
 }
 
 // AnyCategory is no longer used for listing/fetching, but still useful for forms

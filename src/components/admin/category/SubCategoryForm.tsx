@@ -1,56 +1,66 @@
-// src/components/admin/category/RootCategoryForm.tsx
+// src/components/admin/category/SubCategoryForm.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { FaSave, FaTimes, FaUpload, FaImage, FaTrash } from 'react-icons/fa';
-import { RootCategory } from '@/types/category';
+import { RootCategory, SubCategory } from '@/types/category';
 
-interface RootCategoryFormProps {
-    initialData?: Partial<RootCategory>;
+interface SubCategoryFormProps {
+    initialData?: Partial<SubCategory>;
     isEditMode: boolean;
     onSave: (
-        data: Partial<RootCategory>, 
+        data: Partial<SubCategory>, 
         imageFile: File | null, 
         imageRemoved: boolean, 
         id?: string
     ) => Promise<void>; 
+    allParentCategories: (RootCategory | SubCategory)[];
     isLoading: boolean;
     error: string | null;
 }
 
-const RootCategoryForm: React.FC<RootCategoryFormProps> = ({ 
+const SubCategoryForm: React.FC<SubCategoryFormProps> = ({ 
     initialData, 
     isEditMode, 
     onSave, 
+    allParentCategories,
     isLoading, 
     error 
 }) => {
-    const [formData, setFormData] = useState<Partial<RootCategory>>({}); 
+    const [formData, setFormData] = useState<Partial<SubCategory>>(initialData || {}); 
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imageRemoved, setImageRemoved] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [localLoading, setLocalLoading] = useState(false);
     const [showImageOptions, setShowImageOptions] = useState(false);
 
+    // Reset form when initialData changes
     useEffect(() => {
-        setFormData(initialData || {});
+        if (initialData) {
+            setFormData(initialData);
+            setImagePreview(initialData.sub_cat_image || null);
+        } else {
+            setFormData({});
+            setImagePreview(null);
+        }
         setImageRemoved(false);
         setImageFile(null);
-        setImagePreview(initialData?.cat_image || null);
+        setLocalLoading(false);
     }, [initialData]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
-        if (file) {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
             setImageFile(file);
             setImageRemoved(false);
             setImagePreview(URL.createObjectURL(file));
-            setShowImageOptions(true);
+            setShowImageOptions(false);
         }
     };
 
@@ -58,7 +68,6 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
         setImageRemoved(true);
         setImageFile(null);
         setImagePreview(null);
-        setShowImageOptions(false);
     };
     
     const handleSubmit = async (e: React.FormEvent) => {
@@ -76,15 +85,28 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
 
     const isDisabled = isLoading || localLoading;
 
+    // Separate root categories and sub categories with proper type checking
+    const rootCategories: RootCategory[] = [];
+    const subCategories: SubCategory[] = [];
+    
+    // Properly filter parent categories with type checking
+    allParentCategories.forEach(cat => {
+        if ('cat_name' in cat) {
+            rootCategories.push(cat as RootCategory);
+        } else if ('sub_cat_name' in cat && cat.id !== formData.id) {
+            subCategories.push(cat as SubCategory);
+        }
+    });
+
     return (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             {/* Form Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
+            <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-slate-50 border-b border-gray-200">
                 <h2 className="text-xl font-semibold text-slate-800">
-                    {isEditMode ? `Edit: ${formData.cat_name || ''}` : 'Create New Root Category'}
+                    {isEditMode ? `Edit: ${formData.sub_cat_name || ''}` : 'Create New Sub Category'}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                    {isEditMode ? 'Update category information' : 'Add a new root level category'}
+                    {isEditMode ? 'Update sub category information' : 'Add a new sub category under a parent'}
                 </p>
             </div>
 
@@ -100,19 +122,68 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
 
             {/* Form Content */}
             <div className="p-6 space-y-6">
-                {/* Category Name */}
+                {/* Parent Selector */}
                 <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">
-                        Category Name <span className="text-red-500">*</span>
+                    <label htmlFor="parent_id" className="block text-sm font-medium text-slate-700">
+                        Parent Category <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                        <select
+                            id="parent_id"
+                            name="parent_id"
+                            value={formData.parent_id || ''}
+                            onChange={handleChange}
+                            required
+                            className="w-full appearance-none px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all pr-10"
+                            disabled={isEditMode || isDisabled}
+                        >
+                            <option value="">-- Select Parent Category --</option>
+                            {rootCategories.length > 0 && (
+                                <optgroup label="Root Categories">
+                                    {rootCategories.map((cat) => (
+                                        <option key={cat.id} value={cat.id} className="font-medium">
+                                            {cat.cat_name}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            )}
+                            {subCategories.length > 0 && (
+                                <optgroup label="Sub Categories">
+                                    {subCategories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>
+                                            {cat.sub_cat_name}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            )}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                    {isEditMode && (
+                        <p className="text-xs text-indigo-500 italic mt-1">
+                            Parent relationship cannot be changed after creation
+                        </p>
+                    )}
+                </div>
+
+                {/* Sub Category Name */}
+                <div className="space-y-2">
+                    <label htmlFor="sub_cat_name" className="block text-sm font-medium text-slate-700">
+                        Sub Category Name <span className="text-red-500">*</span>
                     </label>
                     <input
+                        id="sub_cat_name"
                         type="text"
-                        name="cat_name" 
-                        value={formData.cat_name || ''} 
+                        name="sub_cat_name" 
+                        value={formData.sub_cat_name || ''} 
                         onChange={handleChange}
                         required
-                        placeholder="Enter category name"
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="Enter sub category name"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                         disabled={isDisabled}
                     />
                 </div>
@@ -120,7 +191,7 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                 {/* Image Upload */}
                 <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-700">
-                        Category Image
+                        Sub Category Image
                     </label>
                     
                     {/* Image Preview Area */}
@@ -140,7 +211,7 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => setShowImageOptions(true)}
-                                        className="px-3 py-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                                        className="px-3 py-1.5 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
                                     >
                                         <FaUpload className="inline-block w-3 h-3 mr-1" />
                                         Change
@@ -160,12 +231,12 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                                 <FaImage className="mx-auto h-12 w-12 text-gray-400" />
                                 <div className="mt-4 flex text-sm text-gray-500">
                                     <label
-                                        htmlFor="image-upload"
-                                        className="mx-auto relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none"
+                                        htmlFor="sub-image-upload"
+                                        className="mx-auto relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none"
                                     >
                                         <span>Upload an image</span>
                                         <input
-                                            id="image-upload"
+                                            id="sub-image-upload"
                                             type="file"
                                             className="sr-only"
                                             accept="image/*"
@@ -187,13 +258,13 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                                     <h3 className="text-sm font-medium text-gray-900 mb-3">Update Image</h3>
                                     <input
                                         type="file"
-                                        id="file-upload"
+                                        id="sub-file-upload"
                                         className="block w-full text-sm text-gray-500
                                             file:mr-4 file:py-2 file:px-4
                                             file:rounded-md file:border-0
                                             file:text-sm file:font-medium
-                                            file:bg-blue-50 file:text-blue-700
-                                            hover:file:bg-blue-100"
+                                            file:bg-indigo-50 file:text-indigo-700
+                                            hover:file:bg-indigo-100"
                                         accept="image/*"
                                         onChange={handleImageChange}
                                     />
@@ -214,16 +285,17 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                 
                 {/* Description */}
                 <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">
+                    <label htmlFor="sub_cat_description" className="block text-sm font-medium text-slate-700">
                         Description
                     </label>
                     <textarea
-                        name="cat_description"
-                        value={formData.cat_description || ''}
+                        id="sub_cat_description"
+                        name="sub_cat_description"
+                        value={formData.sub_cat_description || ''}
                         onChange={handleChange}
                         rows={4}
-                        placeholder="Enter category description"
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="Enter sub category description"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                         disabled={isDisabled}
                     />
                 </div>
@@ -246,13 +318,13 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                         px-4 py-2 rounded-lg text-white font-medium flex items-center
                         ${isDisabled 
                             ? 'bg-gray-400 cursor-not-allowed' 
-                            : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-sm'}
+                            : 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 shadow-sm'}
                     `}
                 >
                     <FaSave className="w-4 h-4 mr-2" />
                     {isEditMode 
-                        ? (localLoading ? 'Updating...' : 'Update Category') 
-                        : (localLoading ? 'Creating...' : 'Create Category')
+                        ? (localLoading ? 'Updating...' : 'Update Sub Category') 
+                        : (localLoading ? 'Creating...' : 'Create Sub Category')
                     }
                 </button>
             </div>
@@ -260,4 +332,4 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
     );
 };
 
-export default RootCategoryForm;
+export default SubCategoryForm;
