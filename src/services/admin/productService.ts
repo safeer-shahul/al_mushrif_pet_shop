@@ -10,7 +10,6 @@ const PRODUCT_API_ENDPOINT = '/admin/products';
  * Custom hook to encapsulate all Product and Variant API operations.
  */
 export const useProductService = () => {
-    // FIX: token is correctly accessed here.
     const { token } = useAuth();
     const storagePrefix = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + '/storage/';
 
@@ -19,7 +18,6 @@ export const useProductService = () => {
         if (token) {
             return createAuthenticatedClient(token, config); 
         }
-        // Throwing here is safe as admin routes are protected by ProtectedRoute.
         throw new Error("Authentication token missing."); 
     }, [token]);
     
@@ -58,9 +56,11 @@ export const useProductService = () => {
         try {
             await getCsrfToken();
             
-            // Prepare payload: Booleans to 1/0, Filters to JSON string
+            // Prepare payload: Includes new base prices, Booleans to 1/0, Filters to JSON string
             const payload = {
                 ...productData,
+                base_price: productData.base_price, 
+                base_offer_price: productData.base_offer_price,
                 can_return: productData.can_return ? 1 : 0,
                 can_replace: productData.can_replace ? 1 : 0,
                 product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,
@@ -78,9 +78,11 @@ export const useProductService = () => {
         try {
             await getCsrfToken();
             
-            // Prepare payload for update, including PUT method spoofing
+            // Prepare payload for update: Includes new base prices, Booleans to 1/0, Filters to JSON string
             const payload = {
                 ...productData,
+                ...(productData.base_price !== undefined && { base_price: productData.base_price }),
+                ...(productData.base_offer_price !== undefined && { base_offer_price: productData.base_offer_price }),
                 ...(productData.can_return !== undefined && { can_return: productData.can_return ? 1 : 0 }),
                 ...(productData.can_replace !== undefined && { can_replace: productData.can_replace ? 1 : 0 }),
                 product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,

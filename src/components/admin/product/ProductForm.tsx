@@ -2,18 +2,18 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FaSave, FaSync, FaInfoCircle } from 'react-icons/fa';
+import { useRouter } from 'next/navigation'; // Added useRouter for Cancel button
+import { FaSave, FaInfoCircle, FaDollarSign } from 'react-icons/fa';
 import { Product, ProductFilters } from '@/types/product';
 import { Brand } from '@/types/brand';
 import { SubCategory } from '@/types/category';
-import { FilterType, FilterItem } from '@/types/filter';
+import { FilterType } from '@/types/filter';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import router from 'next/router';
 
-// Assume imports for other services exist here:
-// import { useBrandService } from '@/services/admin/brandService';
-// import { useCategoryService } from '@/services/admin/categoryService';
-// import { useFilterService } from '@/services/admin/filterService';
+// Assume types are imported from their respective paths:
+// import { Brand } from '@/types/brand';
+// import { SubCategory } from '@/types/category';
+// import { FilterType } from '@/types/filter';
 
 interface ProductFormProps {
     initialData?: Partial<Product>;
@@ -22,7 +22,6 @@ interface ProductFormProps {
     isLoading: boolean;
     error: string | null;
     
-    // Dependencies to be passed from the parent page
     allBrands: Brand[];
     allSubCategories: SubCategory[];
     allFilterTypes: FilterType[];
@@ -42,32 +41,46 @@ const ProductForm: React.FC<ProductFormProps> = ({
     dependenciesLoading,
     dependenciesError,
 }) => {
+    const router = useRouter(); // Initialize router
+    
     const [formData, setFormData] = useState<Partial<Product>>(initialData || {
         can_return: true,
         can_replace: true,
         product_filters: {},
+        base_price: null,
+        base_offer_price: null,
     }); 
     const [localLoading, setLocalLoading] = useState(false);
 
+    // Helper to determine if we should show base price fields (only if no variants exist in Edit mode)
+    const hasVariants = useMemo(() => {
+        return isEditMode && (initialData?.variants?.length ?? 0) > 0;
+    }, [isEditMode, initialData?.variants]);
+
+
     useEffect(() => {
-        // Hydrate the form data, handling the nested JSON structure
+        // Hydrate the form data on initial load or when initialData changes
         setFormData(prev => ({
             ...initialData,
             ...prev,
-            // Ensure product_filters is initialized as an object if missing
             product_filters: initialData?.product_filters || {},
-            // Set defaults for toggles if creating a new product
+            // Use ?? to set defaults only if the initialData field is explicitly null or undefined
             can_return: initialData?.can_return ?? true,
             can_replace: initialData?.can_replace ?? true,
+            base_price: initialData?.base_price ?? null,
+            base_offer_price: initialData?.base_offer_price ?? null,
         }));
     }, [initialData]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type, checked } = e.target as HTMLInputElement;
         
-        // Handle standard inputs
         if (type === 'checkbox') {
             setFormData(prev => ({ ...prev, [name]: checked }));
+        } else if (type === 'number' || name.includes('price')) {
+            // Convert price inputs to numbers or null if empty
+            const numValue = value === '' ? null : Number(value);
+            setFormData(prev => ({ ...prev, [name]: numValue }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
@@ -100,6 +113,13 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Basic validation for base price if no variants exist
+        if (!hasVariants && (!formData.base_price || formData.base_price <= 0)) {
+            alert("Base Price is required and must be greater than zero for products without variants.");
+            return;
+        }
+
         setLocalLoading(true);
         
         try {
@@ -197,6 +217,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                 </option>
                             ))}
                         </select>
+                         <p className="text-xs text-gray-500 mt-1">
+                            Only leaf-node categories (with no children) are shown.
+                        </p>
                     </div>
 
                     <div className="space-y-2">
@@ -221,6 +244,63 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         </select>
                     </div>
                 </div>
+
+                {/* NEW: Base Pricing Section (Conditional) */}
+                {!hasVariants && (
+                    <div className="pt-4 border-t border-gray-100">
+                        <h3 className="text-md font-semibold text-slate-800 mb-3">
+                            Pricing Details 
+                            <span className="text-sm text-gray-500 ml-2 font-normal">
+                                ({isEditMode ? 'No variants found' : 'Used if no variants are added later'})
+                            </span>
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            <div className="space-y-2">
+                                <label htmlFor="base_price" className="block text-sm font-medium text-slate-700">
+                                    Base Price (AED) <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative">
+                                    <FaDollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <input
+                                        id="base_price"
+                                        type="number"
+                                        step="0.01"
+                                        name="base_price" 
+                                        value={formData.base_price ?? ''} 
+                                        onChange={handleChange}
+                                        required={!hasVariants} // Make required if no variants exist
+                                        placeholder="0.00"
+                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all pl-10"
+                                        disabled={isDisabled}
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label htmlFor="base_offer_price" className="block text-sm font-medium text-slate-700">
+                                    Base Offer Price (Optional)
+                                </label>
+                                <div className="relative">
+                                    <FaDollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <input
+                                        id="base_offer_price"
+                                        type="number"
+                                        step="0.01"
+                                        name="base_offer_price" 
+                                        value={formData.base_offer_price ?? ''} 
+                                        onChange={handleChange}
+                                        placeholder="0.00"
+                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all pl-10"
+                                        disabled={isDisabled}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* END NEW PRICING SECTION */}
+
 
                 {/* Returns and Replace Toggles */}
                 <div className="pt-4 border-t border-gray-100">
@@ -308,7 +388,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 <button
                     type="button"
                     className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                    onClick={() => router.push('/mushrif-admin/products')} // Use router to navigate back to list
+                    onClick={() => router.push('/mushrif-admin/products')}
                     disabled={isDisabled}
                 >
                     Cancel

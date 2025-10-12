@@ -44,7 +44,7 @@ const ProductCreatePage: React.FC = () => {
                 fetchAllFilterTypes(),
             ]);
             
-            // --- FIX: Filter SubCategories to only show leaf nodes (no children) ---
+            // --- Filter SubCategories to only show leaf nodes (no children) ---
             const allParentIds = new Set(categories.map(c => c.parent_id).filter(Boolean));
             
             // A SubCategory is a leaf node if its own ID is NOT used as a parent_id by another SubCategory.
@@ -73,12 +73,16 @@ const ProductCreatePage: React.FC = () => {
         setApiError(null);
         setLocalLoading(true);
         
-        // Prepare the payload, excluding relations
+        // Prepare the payload, including new base prices
         const payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand'> = {
             prod_id: data.prod_id || '',
             prod_name: data.prod_name || '',
             sub_cat_id: data.sub_cat_id || null,
             brand_id: data.brand_id || '',
+            
+            base_price: data.base_price || null,
+            base_offer_price: data.base_offer_price || null,
+            
             can_return: data.can_return ?? true,
             can_replace: data.can_replace ?? true,
             product_filters: data.product_filters || null,

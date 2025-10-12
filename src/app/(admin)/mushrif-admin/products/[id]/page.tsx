@@ -17,7 +17,7 @@ import { FilterType } from '@/types/filter';
 
 const ProductEditPage: React.FC = () => {
     const params = useParams();
-    const router = useRouter(); // Required for back button in form
+    const router = useRouter(); 
     const productId = params.id as string;
     const { fetchProductById, updateProduct } = useProductService();
     
@@ -58,7 +58,7 @@ const ProductEditPage: React.FC = () => {
                 fetchAllFilterTypes(),
             ]);
             
-            // --- FIX: Filter SubCategories to only show leaf nodes (no children) ---
+            // --- Filter SubCategories to only show leaf nodes (no children) ---
             const allParentIds = new Set(categories.map(c => c.parent_id).filter(Boolean));
             
             // A SubCategory is a leaf node if its own ID is NOT used as a parent_id by another SubCategory.
@@ -101,6 +101,12 @@ const ProductEditPage: React.FC = () => {
             prod_name: data.prod_name,
             sub_cat_id: data.sub_cat_id,
             brand_id: data.brand_id,
+            
+            // --- NEW PRICE FIELDS ---
+            base_price: data.base_price,
+            base_offer_price: data.base_offer_price,
+            // ------------------------
+            
             can_return: data.can_return,
             can_replace: data.can_replace,
             product_filters: data.product_filters,
@@ -112,7 +118,6 @@ const ProductEditPage: React.FC = () => {
             alert(`Product ${updatedProduct.prod_name} updated successfully.`);
             
             // Update the local state with the new data from the API response
-            // Preserve the current variants if they weren't returned in the update response
             setCurrentProduct(prev => (prev ? { ...prev, ...updatedProduct } : null));
             
         } catch (err: any) {
