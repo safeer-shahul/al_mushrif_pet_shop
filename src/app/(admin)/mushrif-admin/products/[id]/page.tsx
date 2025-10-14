@@ -60,8 +60,6 @@ const ProductEditPage: React.FC = () => {
             
             // --- Filter SubCategories to only show leaf nodes (no children) ---
             const allParentIds = new Set(categories.map(c => c.parent_id).filter(Boolean));
-            
-            // A SubCategory is a leaf node if its own ID is NOT used as a parent_id by another SubCategory.
             const leafSubCategories = categories.filter(category => {
                 return !allParentIds.has(category.id);
             });
@@ -102,10 +100,11 @@ const ProductEditPage: React.FC = () => {
             sub_cat_id: data.sub_cat_id,
             brand_id: data.brand_id,
             
-            // --- NEW PRICE FIELDS ---
+            // --- BASE PRICE/QUANTITY FIELDS ---
             base_price: data.base_price,
             base_offer_price: data.base_offer_price,
-            // ------------------------
+            base_quantity: data.base_quantity, // ADDED
+            // ----------------------------------
             
             can_return: data.can_return,
             can_replace: data.can_replace,
@@ -117,7 +116,6 @@ const ProductEditPage: React.FC = () => {
             
             alert(`Product ${updatedProduct.prod_name} updated successfully.`);
             
-            // Update the local state with the new data from the API response
             setCurrentProduct(prev => (prev ? { ...prev, ...updatedProduct } : null));
             
         } catch (err: any) {

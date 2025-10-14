@@ -1,10 +1,11 @@
 // src/services/admin/productService.ts
 import { useAuth } from '@/context/AuthContext';
 import { getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
-import { Product, ProdVariant } from '@/types/product';
+import { Product, ProdVariant, ProductImage } from '@/types/product';
 import { useCallback } from 'react';
 
 const PRODUCT_API_ENDPOINT = '/admin/products';
+const IMAGE_API_ENDPOINT = '/admin/images'; // Base path for single image CRUD
 
 /**
  * Custom hook to encapsulate all Product and Variant API operations.
@@ -34,7 +35,8 @@ export const useProductService = () => {
     const fetchAllProducts = useCallback(async (): Promise<Product[]> => {
         const api = getClient();
         try {
-            const response = await api.get<Product[]>(PRODUCT_API_ENDPOINT);
+            // Ensure images are eagerly loaded for the base product listing
+            const response = await api.get<Product[]>(`${PRODUCT_API_ENDPOINT}?include=images`);
             return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to load product list.');
@@ -44,23 +46,25 @@ export const useProductService = () => {
     const fetchProductById = useCallback(async (id: string): Promise<Product> => {
         const api = getClient();
         try {
-            const response = await api.get<Product>(`${PRODUCT_API_ENDPOINT}/${id}`);
+            // Ensure variants and images are eagerly loaded
+            const response = await api.get<Product>(`${PRODUCT_API_ENDPOINT}/${id}?include=variants.images,images`);
             return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to load product details.');
         }
     }, [getClient]);
 
-    const createProduct = useCallback(async (productData: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand'>) => {
+    const createProduct = useCallback(async (productData: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand' | 'images'>) => {
         const api = getClient();
         try {
             await getCsrfToken();
             
-            // Prepare payload: Includes new base prices, Booleans to 1/0, Filters to JSON string
+            // Prepare payload: Includes new base prices/quantity, Booleans to 1/0, Filters to JSON string
             const payload = {
                 ...productData,
                 base_price: productData.base_price, 
                 base_offer_price: productData.base_offer_price,
+                base_quantity: productData.base_quantity,
                 can_return: productData.can_return ? 1 : 0,
                 can_replace: productData.can_replace ? 1 : 0,
                 product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,
@@ -78,11 +82,12 @@ export const useProductService = () => {
         try {
             await getCsrfToken();
             
-            // Prepare payload for update: Includes new base prices, Booleans to 1/0, Filters to JSON string
+            // Prepare payload for update
             const payload = {
                 ...productData,
                 ...(productData.base_price !== undefined && { base_price: productData.base_price }),
                 ...(productData.base_offer_price !== undefined && { base_offer_price: productData.base_offer_price }),
+                ...(productData.base_quantity !== undefined && { base_quantity: productData.base_quantity }),
                 ...(productData.can_return !== undefined && { can_return: productData.can_return ? 1 : 0 }),
                 ...(productData.can_replace !== undefined && { can_replace: productData.can_replace ? 1 : 0 }),
                 product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,
@@ -107,18 +112,15 @@ export const useProductService = () => {
     }, [getClient]);
 
     // ---------------------------------------------------------------------
-    // PRODUCT VARIANT OPERATIONS (JSON Payload)
+    // PRODUCT VARIANT CRUD OPERATIONS (JSON Payload)
     // ---------------------------------------------------------------------
 
     const rawCreateVariantJson = useCallback(async (productId: string, payload: Partial<ProdVariant>) => {
         const api = getClient();
         try {
             await getCsrfToken();
-            // API: POST /admin/products/{productId}/variants
-            const response = await api.post(`${PRODUCT_API_ENDPOINT}/${productId}/variants`, {
-                ...payload,
-                images: payload.images ? JSON.stringify(payload.images) : null // Ensure JSON string format for API
-            });
+            // No images field in payload
+            const response = await api.post(`${PRODUCT_API_ENDPOINT}/${productId}/variants`, payload);
             return response.data.variant as ProdVariant;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to create variant.');
@@ -129,11 +131,8 @@ export const useProductService = () => {
         const api = getClient();
         try {
             await getCsrfToken();
-            // API: PUT /admin/products/{productId}/variants/{id}
-            const response = await api.put(`${PRODUCT_API_ENDPOINT}/${productId}/variants/${variantId}`, {
-                ...payload,
-                images: payload.images ? JSON.stringify(payload.images) : null // Ensure JSON string format for API
-            });
+            // No images field in payload
+            const response = await api.put(`${PRODUCT_API_ENDPOINT}/${productId}/variants/${variantId}`, payload);
             return response.data.variant as ProdVariant;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to update variant.');
@@ -144,11 +143,58 @@ export const useProductService = () => {
         const api = getClient();
         try {
             await getCsrfToken();
-            // API: DELETE /admin/products/{productId}/variants/{id}
             const response = await api.delete(`${PRODUCT_API_ENDPOINT}/${productId}/variants/${variantId}`);
             return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to delete variant.');
+        }
+    }, [getClient]);
+
+    // ---------------------------------------------------------------------
+    // PRODUCT/VARIANT IMAGE MANAGEMENT
+    // ---------------------------------------------------------------------
+    
+    /** Uploads one or more images to a Product or Variant */
+    const uploadImages = useCallback(async (parentId: string, files: File[], isVariant: boolean): Promise<ProductImage[]> => {
+        const api = getClient(true);
+        const formData = new FormData();
+        files.forEach(file => formData.append('images[]', file));
+
+        const endpoint = isVariant 
+            ? `/admin/variants/${parentId}/images` 
+            : `/admin/products/${parentId}/images`;
+        
+        try {
+            await getCsrfToken();
+            const response = await api.post(endpoint, formData);
+            return response.data.images;
+        } catch (error: any) {
+            throw new Error(error.response?.data?.message || 'Failed to upload images.');
+        }
+    }, [getClient]);
+    
+    /** Updates file or metadata (is_primary, order_sequence) of a single image record */
+    const updateImage = useCallback(async (imageId: string, formData: FormData): Promise<ProductImage> => {
+        const api = getClient(true);
+        try {
+            await getCsrfToken();
+            formData.append('_method', 'PUT'); 
+            const response = await api.post(`${IMAGE_API_ENDPOINT}/${imageId}`, formData);
+            return response.data.image;
+        } catch (error: any) {
+            throw new Error(error.response?.data?.message || 'Failed to update image.');
+        }
+    }, [getClient]);
+    
+    /** Deletes a single image record */
+    const deleteImage = useCallback(async (imageId: string) => {
+        const api = getClient();
+        try {
+            await getCsrfToken();
+            const response = await api.delete(`${IMAGE_API_ENDPOINT}/${imageId}`);
+            return response.data;
+        } catch (error: any) {
+            throw new Error(error.response?.data?.message || 'Failed to delete image.');
         }
     }, [getClient]);
 
@@ -163,6 +209,9 @@ export const useProductService = () => {
         rawUpdateVariantJson,
         deleteVariant,
         
+        uploadImages,
+        updateImage,
+        deleteImage,
         getStorageUrl
     };
 };

@@ -46,8 +46,6 @@ const ProductCreatePage: React.FC = () => {
             
             // --- Filter SubCategories to only show leaf nodes (no children) ---
             const allParentIds = new Set(categories.map(c => c.parent_id).filter(Boolean));
-            
-            // A SubCategory is a leaf node if its own ID is NOT used as a parent_id by another SubCategory.
             const leafSubCategories = categories.filter(category => {
                 return !allParentIds.has(category.id);
             });
@@ -73,15 +71,18 @@ const ProductCreatePage: React.FC = () => {
         setApiError(null);
         setLocalLoading(true);
         
-        // Prepare the payload, including new base prices
+        // Prepare the payload
         const payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand'> = {
             prod_id: data.prod_id || '',
             prod_name: data.prod_name || '',
             sub_cat_id: data.sub_cat_id || null,
             brand_id: data.brand_id || '',
             
+            // --- BASE PRICE/QUANTITY FIELDS ---
             base_price: data.base_price || null,
             base_offer_price: data.base_offer_price || null,
+            base_quantity: data.base_quantity || null, // ADDED
+            // ----------------------------------
             
             can_return: data.can_return ?? true,
             can_replace: data.can_replace ?? true,
@@ -93,7 +94,6 @@ const ProductCreatePage: React.FC = () => {
             
             alert(`Product ${response.prod_name} created successfully.`);
             
-            // Redirect to the edit page to manage variants immediately after creation
             router.push(`/mushrif-admin/products/${response.id}`); 
         } catch (err: any) {
             const errorMsg = err.message || 'A network error occurred.';

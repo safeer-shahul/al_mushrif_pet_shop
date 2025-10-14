@@ -1,13 +1,12 @@
 // src/components/admin/product/ProductVariantManager.tsx
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
-// Removed: FaImage, FaUpload, FaCheck, FaTimes
-import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa'; 
-import { ProdVariant, Product } from '@/types/product';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { ProdVariant, Product, ProductImage } from '@/types/product';
 import { useProductService } from '@/services/admin/productService';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-// Removed: useAuth and getClient as they are now encapsulated in the service hook
+import ProductImageManager from './ProductImageManager'; // Dedicated image manager component
 
 interface ProductVariantManagerProps {
     product: Product;
@@ -15,24 +14,20 @@ interface ProductVariantManagerProps {
 }
 
 const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ product, onVariantsUpdated }) => {
-    // FIX: Destructure the new raw JSON functions
-    const { rawCreateVariantJson, rawUpdateVariantJson, deleteVariant } = useProductService(); 
+    const { rawCreateVariantJson, rawUpdateVariantJson, deleteVariant } = useProductService();
     
-    // State to hold the variants (synced with parent component via onVariantsUpdated)
     const [variants, setVariants] = useState<ProdVariant[]>(product.variants || []);
     const [loading, setLoading] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
     const [isAdding, setIsAdding] = useState(false);
     const [editingVariant, setEditingVariant] = useState<ProdVariant | null>(null);
 
-    // Sync initial variants when product changes (only on load/hard refresh)
-    const initialLoadRef = useRef(false);
-    if (!initialLoadRef.current && product.variants) {
-        setVariants(product.variants);
-        initialLoadRef.current = true;
-    }
+    // Sync initial variants when product changes (on first load)
+    useEffect(() => {
+        setVariants(product.variants || []);
+    }, [product.variants]);
 
-    // Function to handle the global state update
+    // Function to handle the global state update (takes full variant object)
     const handleLocalUpdate = (updatedVariant: ProdVariant) => {
         const newVariants = variants.map(v => v.id === updatedVariant.id ? updatedVariant : v);
         setVariants(newVariants);
@@ -50,6 +45,16 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ product, 
         setVariants(newVariants);
         onVariantsUpdated(newVariants);
     };
+    
+    // FIX: Wrapper function to satisfy the onPrimarySet prop signature (imageId: string)
+    const handlePrimaryImageSet = useCallback((imageId: string) => {
+        // Find the variant that owns this image and trigger a local update to re-render the list
+        const owningVariant = variants.find(v => v.images?.some(img => img.id === imageId));
+        if (owningVariant) {
+             // Forcing a local update to propagate the change to the table/list view
+             handleLocalUpdate({ ...owningVariant, images: owningVariant.images });
+        }
+    }, [variants]);
 
     // ------------------------------------------------------------------
     // Nested Form Component for Add/Edit
@@ -66,16 +71,15 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ product, 
         const [data, setData] = useState<Partial<ProdVariant>>({ ...initialData, prod_id: productId });
         const [localError, setLocalError] = useState<string | null>(null);
         const [saving, setSaving] = useState(false);
+        
+        // Local state for images while editing (synced with ImageManager)
+        const [tempImages, setTempImages] = useState<ProductImage[]>(initialData?.images || []);
 
-        // Utility to safely parse JSON from textarea for images
-        const parseImagesJson = (jsonString: string): string[] | undefined => {
-            try {
-                const result = JSON.parse(jsonString);
-                return Array.isArray(result) ? result.filter(item => typeof item === 'string') : undefined;
-            } catch {
-                return undefined;
-            }
-        };
+        // Updates the local variant state when ImageManager triggers a change
+        const handleImageManagerChange = useCallback((updatedImages: ProductImage[]) => {
+            setTempImages(updatedImages);
+        }, []);
+
 
         const handleSubmit = async (e: React.FormEvent) => {
             e.preventDefault();
@@ -93,14 +97,11 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ product, 
                 price: Number(data.price),
                 offer_price: data.offer_price ? Number(data.offer_price) : null,
                 color_value: data.color_value || null,
-                // Use the parsed array from state
-                images: data.images || null 
             };
             
             try {
                 let responseVariant: ProdVariant;
                 
-                // FIX: Use the new service functions directly
                 if (isNew) {
                     responseVariant = await rawCreateVariantJson(productId, payload);
                 } else {
@@ -108,9 +109,10 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ product, 
                     responseVariant = await rawUpdateVariantJson(productId, data.id, payload);
                 }
                 
+                // Merge local image state (which might have changed during editing)
+                responseVariant.images = tempImages;
                 onSuccess(responseVariant);
             } catch (err: any) {
-                // Set the error on the local form for visibility
                 setLocalError(err.message || (isNew ? 'Failed to create variant.' : 'Failed to update variant.'));
             } finally {
                 setSaving(false);
@@ -118,80 +120,75 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ product, 
         };
 
         return (
-            <form onSubmit={handleSubmit} className="p-4 bg-gray-100 rounded-lg border border-gray-300 space-y-3">
-                <h4 className="text-md font-semibold text-slate-700">{isNew ? 'Add New Variant' : `Edit: ${initialData?.variant_name || initialData?.id}`}</h4>
+            <div className="flex flex-col space-y-4">
+                <form onSubmit={handleSubmit} className="p-4 bg-gray-100 rounded-lg border border-gray-300 space-y-3">
+                    <h4 className="text-md font-semibold text-slate-700">{isNew ? 'Add New Variant' : `Edit: ${initialData?.variant_name || initialData?.id}`}</h4>
+                    
+                    {localError && <div className="p-2 bg-red-100 text-red-700 text-sm rounded">{localError}</div>}
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                        <input 
+                            type="text" 
+                            placeholder="Variant Name (e.g., Size S)"
+                            value={data.variant_name || ''} 
+                            onChange={(e) => setData(prev => ({ ...prev, variant_name: e.target.value }))}
+                            className="px-3 py-2 border rounded text-sm"
+                            disabled={saving}
+                        />
+                        <input 
+                            type="text" 
+                            placeholder="Color Value (e.g., #FF0000)"
+                            value={data.color_value || ''} 
+                            onChange={(e) => setData(prev => ({ ...prev, color_value: e.target.value }))}
+                            className="px-3 py-2 border rounded text-sm"
+                            disabled={saving}
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <input 
+                            type="number" 
+                            step="0.01"
+                            placeholder="Price *"
+                            value={data.price || ''} 
+                            onChange={(e) => setData(prev => ({ ...prev, price: Number(e.target.value) }))}
+                            required
+                            className="px-3 py-2 border rounded text-sm"
+                            disabled={saving}
+                        />
+                        <input 
+                            type="number" 
+                            step="0.01"
+                            placeholder="Offer Price (optional)"
+                            value={data.offer_price || ''} 
+                            onChange={(e) => setData(prev => ({ ...prev, offer_price: Number(e.target.value) }))}
+                            className="px-3 py-2 border rounded text-sm"
+                            disabled={saving}
+                        />
+                    </div>
+                    
+                    <div className="flex justify-end space-x-2">
+                        <button type="button" onClick={onClose} disabled={saving} className="px-3 py-1 text-sm bg-gray-300 rounded hover:bg-gray-400">
+                            Cancel
+                        </button>
+                        <button type="submit" disabled={saving} className={`px-3 py-1 text-sm text-white rounded transition-colors ${saving ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                            {saving ? (isNew ? 'Saving...' : 'Saving...') : (isNew ? 'Save Variant Data' : 'Save Changes')}
+                        </button>
+                    </div>
+                </form>
                 
-                {localError && <div className="p-2 bg-red-100 text-red-700 text-sm rounded">{localError}</div>}
-                
-                <div className="grid grid-cols-2 gap-3">
-                    <input 
-                        type="text" 
-                        placeholder="Variant Name (e.g., Size S)"
-                        value={data.variant_name || ''} 
-                        onChange={(e) => setData(prev => ({ ...prev, variant_name: e.target.value }))}
-                        className="px-3 py-2 border rounded text-sm"
-                        disabled={saving}
+                {/* Render the Image Manager outside the form's submit logic */}
+                {!isNew && data.id && (
+                    <ProductImageManager
+                        parentId={data.id}
+                        images={tempImages}
+                        isVariantManager={true}
+                        onImagesChange={handleImageManagerChange}
+                        onPrimarySet={handlePrimaryImageSet} // Pass the fixed handler
                     />
-                    <input 
-                        type="text" 
-                        placeholder="Color Value (e.g., #FF0000)"
-                        value={data.color_value || ''} 
-                        onChange={(e) => setData(prev => ({ ...prev, color_value: e.target.value }))}
-                        className="px-3 py-2 border rounded text-sm"
-                        disabled={saving}
-                    />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                    <input 
-                        type="number" 
-                        step="0.01"
-                        placeholder="Price *"
-                        value={data.price || ''} 
-                        onChange={(e) => setData(prev => ({ ...prev, price: Number(e.target.value) }))}
-                        required
-                        className="px-3 py-2 border rounded text-sm"
-                        disabled={saving}
-                    />
-                    <input 
-                        type="number" 
-                        step="0.01"
-                        placeholder="Offer Price (optional)"
-                        value={data.offer_price || ''} 
-                        onChange={(e) => setData(prev => ({ ...prev, offer_price: Number(e.target.value) }))}
-                        className="px-3 py-2 border rounded text-sm"
-                        disabled={saving}
-                    />
-                </div>
-                
-                {/* Images field (JSON string input) */}
-                <div className="space-y-1">
-                    <label className="text-xs text-gray-500 block">Image URLs (JSON Array of strings)</label>
-                    <textarea 
-                        placeholder='["/storage/path/img1.jpg", "/storage/path/img2.jpg"]'
-                        rows={2}
-                        value={data.images ? JSON.stringify(data.images) : ''} 
-                        onChange={(e) => {
-                            const images = parseImagesJson(e.target.value);
-                            setData(prev => ({ ...prev, images }));
-                        }}
-                        className="w-full px-3 py-2 border rounded text-sm resize-none"
-                        disabled={saving}
-                    />
-                </div>
-
-
-                <div className="flex justify-end space-x-2">
-                    <button type="button" onClick={onClose} disabled={saving} className="px-3 py-1 text-sm bg-gray-300 rounded hover:bg-gray-400">
-                        Cancel
-                    </button>
-                    <button type="submit" disabled={saving} className={`px-3 py-1 text-sm text-white rounded transition-colors ${saving ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                        {saving ? (isNew ? 'Adding...' : 'Saving...') : (isNew ? 'Add Variant' : 'Save Changes')}
-                    </button>
-                </div>
-            </form>
+                )}
+            </div>
         );
     };
-    // ------------------------------------------------------------------
 
     return (
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 space-y-4">
@@ -212,7 +209,10 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ product, 
                     productId={product.id}
                     isNew={isAdding}
                     initialData={editingVariant || {}}
-                    onClose={() => { setIsAdding(false); setEditingVariant(null); }}
+                    onClose={() => { 
+                        setIsAdding(false); 
+                        setEditingVariant(null); 
+                    }}
                     onSuccess={(variant) => {
                         if (isAdding) {
                             handleLocalCreate(variant);
@@ -238,61 +238,70 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ product, 
                                 <th className="px-4 py-2">Price</th>
                                 <th className="px-4 py-2">Offer Price</th>
                                 <th className="px-4 py-2">Color</th>
+                                <th className="px-4 py-2">Images</th>
                                 <th className="px-4 py-2 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {variants.map(variant => (
-                                <tr key={variant.id} className="text-sm">
-                                    <td className="px-4 py-2">{variant.variant_name || product.prod_name}</td>
-                                    <td className="px-4 py-2 text-gray-700">AED {variant.price.toFixed(2)}</td>
-                                    <td className="px-4 py-2">
-                                        {variant.offer_price ? (
-                                            <span className="text-red-600 font-semibold">AED {variant.offer_price.toFixed(2)}</span>
-                                        ) : (
-                                            <span className="text-gray-400">N/A</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <div className="flex items-center">
-                                            {variant.color_value && (
-                                                <span 
-                                                    className="w-4 h-4 rounded-full border border-gray-300 mr-2 flex-shrink-0" 
-                                                    style={{ backgroundColor: variant.color_value }}
-                                                ></span>
+                            {variants.map(variant => {
+                                const primaryImage = variant.images?.find(img => img.is_primary);
+                                return (
+                                    <tr key={variant.id} className="text-sm">
+                                        <td className="px-4 py-2">{variant.variant_name || product.prod_name}</td>
+                                        <td className="px-4 py-2 text-gray-700">AED {variant.price.toFixed(2)}</td>
+                                        <td className="px-4 py-2">
+                                            {variant.offer_price ? (
+                                                <span className="text-red-600 font-semibold">AED {variant.offer_price.toFixed(2)}</span>
+                                            ) : (
+                                                <span className="text-gray-400">N/A</span>
                                             )}
-                                            {variant.color_value || 'N/A'}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-2 text-right space-x-2">
-                                        <button
-                                            onClick={() => { setEditingVariant(variant); setIsAdding(false); }}
-                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md"
-                                            title="Edit Variant"
-                                        >
-                                            <FaEdit size={14} />
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                if (!window.confirm(`Delete variant ${variant.variant_name || variant.id}?`)) return;
-                                                setLoading(true);
-                                                try {
-                                                    await deleteVariant(product.id, variant.id);
-                                                    handleLocalDelete(variant.id);
-                                                } catch (e: any) {
-                                                    setApiError(e.message || 'Failed to delete variant.');
-                                                } finally {
-                                                    setLoading(false);
-                                                }
-                                            }}
-                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-md"
-                                            title="Delete Variant"
-                                        >
-                                            <FaTrash size={14} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
+                                        </td>
+                                        <td className="px-4 py-2">
+                                            <div className="flex items-center">
+                                                {variant.color_value && (
+                                                    <span 
+                                                        className="w-4 h-4 rounded-full border border-gray-300 mr-2 flex-shrink-0" 
+                                                        style={{ backgroundColor: variant.color_value }}
+                                                    ></span>
+                                                )}
+                                                {variant.color_value || 'N/A'}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-2">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${variant.images?.length ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                {variant.images?.length || 0}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-right space-x-2">
+                                            <button
+                                                onClick={() => { setEditingVariant(variant); setIsAdding(false); }}
+                                                className="p-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors"
+                                                title="Edit Variant"
+                                            >
+                                                <FaEdit size={14} />
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!window.confirm(`Delete variant ${variant.variant_name || variant.id}?`)) return;
+                                                    setLoading(true);
+                                                    try {
+                                                        await deleteVariant(product.id, variant.id);
+                                                        handleLocalDelete(variant.id);
+                                                    } catch (e: any) {
+                                                        setApiError(e.message || 'Failed to delete variant.');
+                                                    } finally {
+                                                        setLoading(false);
+                                                    }
+                                                }}
+                                                className="p-1.5 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors"
+                                                title="Delete Variant"
+                                            >
+                                                <FaTrash size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
