@@ -71,8 +71,8 @@ const ProductCreatePage: React.FC = () => {
         setApiError(null);
         setLocalLoading(true);
         
-        // Prepare the payload
-        const payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand'> = {
+        // Prepare the payload - now including has_variants
+        const payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand' | 'images'> = {
             prod_id: data.prod_id || '',
             prod_name: data.prod_name || '',
             sub_cat_id: data.sub_cat_id || null,
@@ -81,9 +81,10 @@ const ProductCreatePage: React.FC = () => {
             // --- BASE PRICE/QUANTITY FIELDS ---
             base_price: data.base_price || null,
             base_offer_price: data.base_offer_price || null,
-            base_quantity: data.base_quantity || null, // ADDED
+            base_quantity: data.base_quantity || null,
             // ----------------------------------
             
+            has_variants: data.has_variants || false, // Add the missing property
             can_return: data.can_return ?? true,
             can_replace: data.can_replace ?? true,
             product_filters: data.product_filters || null,
@@ -103,6 +104,12 @@ const ProductCreatePage: React.FC = () => {
         }
     };
 
+    // Dummy function for onFullDataRefresh (not needed in create page but required by component)
+    const handleFullDataRefresh = useCallback(() => {
+        // This is a no-op since this is the create page
+        // No data to refresh yet
+    }, []);
+
     if (dependenciesLoading) return <LoadingSpinner />;
     
     return (
@@ -118,6 +125,7 @@ const ProductCreatePage: React.FC = () => {
                 allFilterTypes={allFilterTypes}
                 dependenciesLoading={dependenciesLoading}
                 dependenciesError={dependenciesError}
+                onFullDataRefresh={handleFullDataRefresh} // Add the missing prop
             />
         </div>
     );

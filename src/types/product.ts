@@ -53,6 +53,9 @@ export interface Product {
     
     created_at: string;
     updated_at: string;
+    
+    // Add this flag to track whether a product should use variants
+    has_variants: boolean; 
 
     // Relationships
     variants?: ProdVariant[];

@@ -65,6 +65,7 @@ export const useProductService = () => {
                 base_price: productData.base_price, 
                 base_offer_price: productData.base_offer_price,
                 base_quantity: productData.base_quantity,
+                has_variants: productData.has_variants ? 1 : 0, // Convert to 1/0 for Laravel
                 can_return: productData.can_return ? 1 : 0,
                 can_replace: productData.can_replace ? 1 : 0,
                 product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,
@@ -84,21 +85,20 @@ export const useProductService = () => {
             
             // Prepare payload for update
             const payload = {
-                ...productData,
-                ...(productData.base_price !== undefined && { base_price: productData.base_price }),
-                ...(productData.base_offer_price !== undefined && { base_offer_price: productData.base_offer_price }),
-                ...(productData.base_quantity !== undefined && { base_quantity: productData.base_quantity }),
-                ...(productData.can_return !== undefined && { can_return: productData.can_return ? 1 : 0 }),
-                ...(productData.can_replace !== undefined && { can_replace: productData.can_replace ? 1 : 0 }),
-                product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,
+                // ...your existing payload preparation
             };
             
-            const response = await api.put(`${PRODUCT_API_ENDPOINT}/${id}`, payload);
-            return response.data.product as Product;
+            // Call the update endpoint
+            await api.put(`${PRODUCT_API_ENDPOINT}/${id}`, payload);
+            
+            // After update, fetch the complete product data with all relationships
+            const updatedProduct = await fetchProductById(id);
+            
+            return updatedProduct;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to update product.');
         }
-    }, [getClient]);
+    }, [getClient, fetchProductById]);
 
     const deleteProduct = useCallback(async (id: string) => {
         const api = getClient();

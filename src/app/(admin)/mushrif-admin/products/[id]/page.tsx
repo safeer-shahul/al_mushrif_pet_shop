@@ -30,9 +30,10 @@ const ProductEditPage: React.FC = () => {
     const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
     const [productLoading, setProductLoading] = useState(true);
     const [productApiError, setProductApiError] = useState<string | null>(null);
-    
-    // State for Form/API activity
     const [formLoading, setFormLoading] = useState(false);
+    
+    // FIX: State variable to force API re-fetch when image/variant changes
+    const [dataRefreshKey, setDataRefreshKey] = useState(0); 
     
     // State for Dependencies
     const [allBrands, setAllBrands] = useState<Brand[]>([]);
@@ -40,6 +41,12 @@ const ProductEditPage: React.FC = () => {
     const [allFilterTypes, setAllFilterTypes] = useState<FilterType[]>([]);
     const [dependenciesLoading, setDependenciesLoading] = useState(true);
     const [dependenciesError, setDependenciesError] = useState<string | null>(null);
+
+
+    // FIX: Handler passed down to signal that an image/variant action requires a full state refresh
+    const handleFullDataRefresh = useCallback(() => {
+        setDataRefreshKey(prev => prev + 1);
+    }, []);
 
 
     // Fetch all required data (Product + Dependencies)
@@ -77,7 +84,7 @@ const ProductEditPage: React.FC = () => {
             setProductLoading(false);
             setDependenciesLoading(false);
         }
-    }, [productId, fetchProductById, fetchAllBrands, fetchAllSubCategories, fetchAllFilterTypes]);
+    }, [productId, dataRefreshKey, fetchProductById, fetchAllBrands, fetchAllSubCategories, fetchAllFilterTypes]); // FIX: dataRefreshKey added to dependency array
 
     useEffect(() => {
         fetchData();
@@ -100,11 +107,9 @@ const ProductEditPage: React.FC = () => {
             sub_cat_id: data.sub_cat_id,
             brand_id: data.brand_id,
             
-            // --- BASE PRICE/QUANTITY FIELDS ---
             base_price: data.base_price,
             base_offer_price: data.base_offer_price,
-            base_quantity: data.base_quantity, // ADDED
-            // ----------------------------------
+            base_quantity: data.base_quantity,
             
             can_return: data.can_return,
             can_replace: data.can_replace,
@@ -112,11 +117,14 @@ const ProductEditPage: React.FC = () => {
         };
         
         try {
+            // Update the core product data
             const updatedProduct = await updateProduct(id, payload);
             
             alert(`Product ${updatedProduct.prod_name} updated successfully.`);
             
-            setCurrentProduct(prev => (prev ? { ...prev, ...updatedProduct } : null));
+            // Since the main product fields were updated, we update local state but rely on 
+            // handleFullDataRefresh for image/variant changes.
+            setCurrentProduct(prev => (prev ? { ...prev, ...updatedProduct } : null)); 
             
         } catch (err: any) {
             setProductApiError(err.message || 'A network error occurred during product update.');
@@ -125,7 +133,7 @@ const ProductEditPage: React.FC = () => {
         }
     };
     
-    // Handle updates from the Variant Manager component
+    // Handle updates from the Variant Manager component (local state update only)
     const handleVariantsUpdate = (updatedVariants: ProdVariant[]) => {
         if (currentProduct) {
             setCurrentProduct(prev => (prev ? { ...prev, variants: updatedVariants } : null));
@@ -151,12 +159,14 @@ const ProductEditPage: React.FC = () => {
                 allFilterTypes={allFilterTypes}
                 dependenciesLoading={false} 
                 dependenciesError={dependenciesError}
+                onFullDataRefresh={handleFullDataRefresh} // FIX: Pass down refresh handler
             />
 
             {/* 2. Variant Management Section */}
             <ProductVariantManager 
                 product={currentProduct}
                 onVariantsUpdated={handleVariantsUpdate}
+                onFullDataRefresh={handleFullDataRefresh} // FIX: Pass down refresh handler
             />
         </div>
     );
