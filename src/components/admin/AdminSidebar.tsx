@@ -63,6 +63,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, toggle, isMobile })
 
   const isActive = (href?: string) => {
     if (!href) return false;
+    
+    // For the dashboard (root admin route), only mark active when it's an exact match
+    if (href === '/mushrif-admin') {
+      return pathname === '/mushrif-admin';
+    }
+    
+    // For other routes, check if the path starts with the href
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 

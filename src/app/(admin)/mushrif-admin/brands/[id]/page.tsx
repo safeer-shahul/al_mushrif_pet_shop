@@ -11,7 +11,6 @@ import { Brand } from '@/types/brand';
 const BrandEditPage: React.FC = () => {
     const router = useRouter();
     const params = useParams();
-    // Laravel uses 'brand_id' but Next.js router uses '[id]'
     const id = params.id as string; 
     const { fetchBrandById, updateBrand, getStorageUrl } = useBrandService();
 
@@ -26,8 +25,18 @@ const BrandEditPage: React.FC = () => {
         setLoading(true);
         try {
             const brandData = await fetchBrandById(id);
+            console.log("Fetched brand data:", brandData);
+            
             // Convert the relative path to an absolute URL for the image preview
-            brandData.brand_logo = getStorageUrl(brandData.brand_logo); 
+            brandData.brand_logo = getStorageUrl(brandData.brand_logo);
+            
+            // Fix the naming mismatch - API returns snake_case but TS expects camelCase
+            if (brandData.root_categories && !brandData.rootCategories) {
+                brandData.rootCategories = brandData.root_categories;
+            }
+            
+            console.log("Processed brand data with rootCategories:", brandData);
+            
             setCurrentBrand(brandData);
             setApiError(null);
         } catch (err) {
@@ -41,7 +50,6 @@ const BrandEditPage: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-
 
     // Handle the form submission (Update)
     const handleUpdate = async (
@@ -64,20 +72,35 @@ const BrandEditPage: React.FC = () => {
         formData.append('brand_description', data.brand_description || '');
         formData.append('is_active', (data.is_active ? '1' : '0')); 
 
-        // 2. Append File or Removal Flag
+        // 2. Append Category IDs properly for PHP array handling
+        if (data.category_ids && Array.isArray(data.category_ids)) {
+            console.log("Appending category IDs to form:", data.category_ids);
+            data.category_ids.forEach(categoryId => {
+                formData.append('category_ids[]', categoryId);
+            });
+        }
+
+        // 3. Append File or Removal Flag
         if (imageFile) {
+            console.log("Appending image file:", imageFile.name);
             formData.append('brand_logo', imageFile);
         } else if (imageRemoved && currentBrand?.brand_logo) {
-            // Only send this flag if there was a previous image to remove
+            console.log("Marking logo for removal");
             formData.append('brand_logo_removed', 'true'); 
         }
         
-        // 3. CRITICAL: Append the method spoofing field for Laravel PUT
-        // This is handled inside useBrandService, but we keep it here to be explicit
-        // if the service hook were ever simplified. (It's currently in the service layer).
+        // 4. Append the method spoofing field for Laravel PUT
+        formData.append('_method', 'PUT');
+        
+        // Log the form data for debugging
+        console.log("Form data entries:");
+        for (const pair of formData.entries()) {
+            console.log(pair[0], pair[1]);
+        }
         
         try {
             const response = await updateBrand(brandId, formData);
+            console.log("Update brand response:", response);
             alert(response.message);
             router.push('/mushrif-admin/brands'); 
         } catch (err: any) {
