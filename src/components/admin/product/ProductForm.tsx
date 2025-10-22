@@ -1,12 +1,12 @@
-// src/components/admin/product/ProductForm.tsx
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaSave, FaInfoCircle, FaDollarSign, FaTags, FaBox } from 'react-icons/fa';
+import { FaSave, FaInfoCircle, FaDollarSign, FaTags, FaBox, FaFolderOpen } from 'react-icons/fa';
 import { Product, ProductFilters, ProductImage } from '@/types/product';
 import { Brand } from '@/types/brand';
-import { SubCategory } from '@/types/category';
+import { RootCategory, SubCategory } from '@/types/category'; 
 import { FilterType } from '@/types/filter';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ProductImageManager from './ProductImageManager';
@@ -19,14 +19,94 @@ interface ProductFormProps {
     error: string | null;
     
     allBrands: Brand[];
-    allSubCategories: SubCategory[];
+    allSubCategories: SubCategory[]; 
     allFilterTypes: FilterType[];
+    allRootCategories: RootCategory[]; 
+    
     dependenciesLoading: boolean;
     dependenciesError: string | null;
     
-    // Propagate the refresh handler from the parent edit page
     onFullDataRefresh: () => void;
 }
+
+// ----------------------------------------------------------------------
+// Helper to flatten nested categories and generate full path for display
+// ----------------------------------------------------------------------
+interface FlatCategory {
+    id: string;
+    name: string;
+    path: string; // The full display path (e.g., Cat > Food & Treats > Dry Food)
+    depth: number; // Track how deep in the hierarchy this category is
+}
+
+// Interface for grouped categories
+interface GroupedCategoriesType {
+    [key: string]: FlatCategory[];
+}
+
+const flattenCategories = (rootCats: RootCategory[]): FlatCategory[] => {
+    const flatList: FlatCategory[] = [];
+    
+    console.log('Root Categories for flattening:', rootCats);
+
+    // Helper function to get children regardless of property name
+    const getChildren = (category: any): any[] => {
+        // Check all possible property names for children
+        if (category.sub_categories && Array.isArray(category.sub_categories)) {
+            return category.sub_categories;
+        }
+        if (category.subCategories && Array.isArray(category.subCategories)) {
+            return category.subCategories;
+        }
+        if (category.children && Array.isArray(category.children)) {
+            return category.children;
+        }
+        return [];
+    };
+
+    const traverse = (category: any, path: string[], depth: number) => {
+        // Get the current category name based on available properties
+        const categoryName = category.cat_name || category.sub_cat_name || "Unknown";
+        const currentPath = [...path, categoryName];
+        
+        // Determine if this is a root category (has cat_name)
+        const isRoot = Boolean(category.cat_name);
+        
+        // Get children using helper
+        const children = getChildren(category);
+
+        // Check if this is a leaf node (no children or empty children array)
+        const isLeaf = children.length === 0;
+        
+        // Only add leaf nodes that aren't root categories
+        if (isLeaf && !isRoot) {
+            flatList.push({
+                id: category.id,
+                name: categoryName,
+                path: currentPath.join(' > '),
+                depth: depth
+            });
+        }
+
+        console.log(flatList, 'flatList after checking', category.id);
+
+        // Traverse children if they exist
+        children.forEach(child => {
+            traverse(child, currentPath, depth + 1);
+        });
+    };
+
+    // Start traversal from each root category
+    rootCats.forEach(root => {
+        traverse(root, [], 0);
+    });
+    
+    console.log('Final flatList:', flatList);
+    
+    // Sort by path for consistent ordering
+    return flatList.sort((a, b) => a.path.localeCompare(b.path));
+};
+
 
 const ProductForm: React.FC<ProductFormProps> = ({ 
     initialData, 
@@ -35,14 +115,15 @@ const ProductForm: React.FC<ProductFormProps> = ({
     isLoading, 
     error,
     allBrands,
-    allSubCategories,
+    allSubCategories, 
     allFilterTypes,
+    allRootCategories, 
     dependenciesLoading,
     dependenciesError,
     onFullDataRefresh
 }) => {
     const router = useRouter();
-    
+
     const [formData, setFormData] = useState<Partial<Product>>(initialData || {
         can_return: true,
         can_replace: true,
@@ -50,18 +131,39 @@ const ProductForm: React.FC<ProductFormProps> = ({
         base_price: null,
         base_offer_price: null,
         base_quantity: null,
-        has_variants: false, // Default to false for new products
+        has_variants: false,
     }); 
     const [localLoading, setLocalLoading] = useState(false);
-
-    // State for base product images (only relevant if !hasVariants and in edit mode)
     const [baseImages, setBaseImages] = useState<ProductImage[]>(initialData?.images || []);
+    
+    // Generate flattened categories list with proper paths
+    const flatSubCategories = useMemo(() => {
+        return flattenCategories(allRootCategories);
+    }, [allRootCategories]);
+    
+    // Group categories by their top-level parent for dropdown organization
+    const groupedCategories = useMemo<GroupedCategoriesType>(() => {
+        const groups: GroupedCategoriesType = {};
+        
+        flatSubCategories.forEach(cat => {
+            const parts = cat.path.split(' > ');
+            const topParent = parts[0]; // Get the top-level category
+            
+            if (!groups[topParent]) {
+                groups[topParent] = [];
+            }
+            
+            groups[topParent].push(cat);
+        });
+        
+        return groups;
+    }, [flatSubCategories]);
 
-    // Get explicit hasVariants flag from formData, not inferred from variants array
     const hasVariants = formData.has_variants || false;
+    const isDisabled = isLoading || localLoading || dependenciesLoading;
 
+    // Effect to set initial form data
     useEffect(() => {
-        // Hydrate the form data on initial load or when initialData changes
         const updatedFormData = {
             ...initialData,
             product_filters: initialData?.product_filters || {},
@@ -70,7 +172,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
             base_price: initialData?.base_price ?? null,
             base_offer_price: initialData?.base_offer_price ?? null,
             base_quantity: initialData?.base_quantity ?? null,
-            // If in edit mode, determine has_variants from either explicit flag or presence of variants
             has_variants: initialData?.has_variants ?? (isEditMode && (initialData?.variants?.length ?? 0) > 0)
         };
         
@@ -78,13 +179,13 @@ const ProductForm: React.FC<ProductFormProps> = ({
         setBaseImages(initialData?.images || []);
     }, [initialData, isEditMode]);
 
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type, checked } = e.target as HTMLInputElement;
         
         if (type === 'checkbox') {
             setFormData(prev => ({ ...prev, [name]: checked }));
-        } else if (type === 'number' || name.includes('price') || name.includes('quantity')) {
-            // Convert price/quantity inputs to numbers or null if empty
+        } else if (name.includes('price') || name.includes('quantity')) {
             const numValue = value === '' ? null : Number(value);
             setFormData(prev => ({ ...prev, [name]: numValue }));
         } else {
@@ -92,6 +193,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         }
     };
     
+    // Logic for handling filters
     const handleFilterChange = useCallback((filterTypeId: string, itemId: string, isChecked: boolean) => {
         setFormData(prev => {
             const currentFilters: ProductFilters = prev.product_filters || {};
@@ -117,11 +219,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         setLocalLoading(true);
         try {
             await onSave(formData, formData.id);
-            
-            // After successful save, don't update local state directly
-            // Instead, trigger the full data refresh to get fresh data from API
             onFullDataRefresh();
-            
         } catch (e) {
             console.error(e);
         } finally {
@@ -129,37 +227,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
         }
     };
     
-    const getCategoryPath = useCallback((subCatId: string | null): string => {
-        if (!subCatId) return '';
-
-        const path = [];
-        let currentCat: SubCategory | undefined = allSubCategories.find(c => c.id === subCatId);
-
-        const pathMap = new Map<string, SubCategory>();
-        allSubCategories.forEach(c => pathMap.set(c.id, c));
-        
-        while (currentCat) {
-            path.push(currentCat.sub_cat_name);
-            
-            if (!currentCat.parent_id) break; 
-            
-            const parentCat = pathMap.get(currentCat.parent_id);
-            if (!parentCat) break;
-            
-            currentCat = parentCat;
-        }
-
-        const fullPath = path.reverse().join(' > ');
-        
-        const segments = fullPath.split(' > ');
-        if (segments.length > 1) {
-            segments.pop();
-            return segments.join(' > ');
-        }
-        return '';
-    }, [allSubCategories]);
-
-    const isDisabled = isLoading || localLoading || dependenciesLoading;
 
     if (dependenciesLoading) {
         return <LoadingSpinner />;
@@ -167,6 +234,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
     return (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            
             {/* Form Header */}
             <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-gray-50 border-b border-gray-200">
                 <h2 className="text-xl font-semibold text-slate-800">
@@ -226,31 +294,43 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
                 {/* Categories and Brands */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Enhanced Category Dropdown */}
                     <div className="space-y-2">
                         <label htmlFor="sub_cat_id" className="block text-sm font-medium text-slate-700">
-                            Sub Category
+                            Category (Leaf Node) <span className="text-red-500">*</span>
                         </label>
-                        <select
-                            id="sub_cat_id"
-                            name="sub_cat_id"
-                            value={formData.sub_cat_id || ''}
-                            onChange={handleChange}
-                            className="w-full appearance-none px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all pr-10"
-                            disabled={isDisabled}
-                        >
-                            <option value="">-- Select Sub Category --</option>
-                            {allSubCategories.map((cat) => {
-                                const parentPath = getCategoryPath(cat.id);
-                                return (
-                                    <option key={cat.id} value={cat.id}>
-                                        {parentPath ? `${parentPath} > ${cat.sub_cat_name}` : cat.sub_cat_name}
-                                    </option>
-                                );
-                            })}
-                        </select>
-                         <p className="text-xs text-gray-500 mt-1">
-                            Only leaf-node categories (with no children) are shown.
-                        </p>
+                        <div className="relative">
+                            <select
+                                id="sub_cat_id"
+                                name="sub_cat_id"
+                                value={formData.sub_cat_id || ''}
+                                onChange={handleChange}
+                                className="w-full appearance-none px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all pr-10"
+                                disabled={isDisabled}
+                                required
+                            >
+                                <option value="">-- Select Final Sub Category --</option>
+                                
+                                {Object.keys(groupedCategories).length === 0 ? (
+                                    <option disabled value="">No categories found. Please check your data.</option>
+                                ) : (
+                                    // Render options grouped by top-level category
+                                    Object.entries(groupedCategories).map(([parentName, categories]) => (
+                                        <optgroup key={parentName} label={parentName}>
+                                            {categories.map((cat) => (
+                                                <option key={cat.id} value={cat.id}>
+                                                    {cat.path}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    ))
+                                )}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1 flex items-center">
+                                <FaFolderOpen className='mr-1' /> 
+                                Select the lowest level category. Each option shows the full category path.
+                            </p>
+                        </div>
                     </div>
 
                     <div className="space-y-2">
@@ -389,7 +469,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                 isVariantManager={false}
                                 onImagesChange={setBaseImages}
                                 onPrimarySet={(imageId) => {
-                                    // Update primary image in local state
                                     const updatedImages = baseImages.map(img => ({
                                         ...img,
                                         is_primary: img.id === imageId
@@ -405,41 +484,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         )}
                     </div>
                 )}
-                
-                {/* Returns and Replace Toggles */}
-                <div className="pt-4 border-t border-gray-100">
-                    <h3 className="text-md font-semibold text-slate-800 mb-3">Policy Options</h3>
-                    <div className="flex items-center space-x-8">
-                        <div className="flex items-center">
-                            <input
-                                id="can_return"
-                                name="can_return"
-                                type="checkbox"
-                                checked={!!formData.can_return}
-                                onChange={handleChange}
-                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                disabled={isDisabled}
-                            />
-                            <label htmlFor="can_return" className="ml-3 block text-sm font-medium text-slate-700">
-                                Allow Returns
-                            </label>
-                        </div>
-                        <div className="flex items-center">
-                            <input
-                                id="can_replace"
-                                name="can_replace"
-                                type="checkbox"
-                                checked={!!formData.can_replace}
-                                onChange={handleChange}
-                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                disabled={isDisabled}
-                            />
-                            <label htmlFor="can_replace" className="ml-3 block text-sm font-medium text-slate-700">
-                                Allow Replacements
-                            </label>
-                        </div>
-                    </div>
-                </div>
+
 
                 {/* Filter Selector Section */}
                 <div className="pt-4 border-t border-gray-100">
@@ -484,7 +529,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         </div>
                     )}
                 </div>
-                
             </div>
             
             {/* Form Footer */}

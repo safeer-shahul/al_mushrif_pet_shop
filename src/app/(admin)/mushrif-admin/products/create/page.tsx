@@ -10,7 +10,7 @@ import { Product } from '@/types/product';
 import { useCategoryService } from '@/services/admin/categoryService';
 import { useBrandService } from '@/services/admin/brandService';
 import { useFilterService } from '@/services/admin/filterService';
-import { SubCategory } from '@/types/category';
+import { SubCategory, RootCategory } from '@/types/category';
 import { Brand } from '@/types/brand';
 import { FilterType } from '@/types/filter';
 
@@ -19,13 +19,14 @@ const ProductCreatePage: React.FC = () => {
     const { createProduct } = useProductService();
     
     // Dependencies hooks
-    const { fetchAllSubCategories } = useCategoryService();
+    const { fetchAllRootCategories, fetchAllSubCategories } = useCategoryService(); 
     const { fetchAllBrands } = useBrandService();
     const { fetchAllFilterTypes } = useFilterService();
 
     // State for dependencies
     const [allBrands, setAllBrands] = useState<Brand[]>([]);
-    const [allSubCategories, setAllSubCategories] = useState<SubCategory[]>([]);
+    const [allRootCategories, setAllRootCategories] = useState<RootCategory[]>([]); // Data is here
+    const [allSubCategories, setAllSubCategories] = useState<SubCategory[]>([]); 
     const [allFilterTypes, setAllFilterTypes] = useState<FilterType[]>([]);
     const [dependenciesLoading, setDependenciesLoading] = useState(true);
     const [dependenciesError, setDependenciesError] = useState<string | null>(null);
@@ -38,21 +39,17 @@ const ProductCreatePage: React.FC = () => {
         setDependenciesLoading(true);
         setDependenciesError(null);
         try {
-            const [brands, categories, filters] = await Promise.all([
+            // FIX: Ensure all fetches run in parallel
+            const [brands, rootCategories, subCategories, filters] = await Promise.all([
                 fetchAllBrands(),
+                fetchAllRootCategories(), 
                 fetchAllSubCategories(), 
                 fetchAllFilterTypes(),
             ]);
             
-            // --- Filter SubCategories to only show leaf nodes (no children) ---
-            const allParentIds = new Set(categories.map(c => c.parent_id).filter(Boolean));
-            const leafSubCategories = categories.filter(category => {
-                return !allParentIds.has(category.id);
-            });
-            // ----------------------------------------------------------------------
-            
             setAllBrands(brands);
-            setAllSubCategories(leafSubCategories); 
+            setAllRootCategories(rootCategories); 
+            setAllSubCategories(subCategories); 
             setAllFilterTypes(filters);
             
         } catch (err: any) {
@@ -60,7 +57,7 @@ const ProductCreatePage: React.FC = () => {
         } finally {
             setDependenciesLoading(false);
         }
-    }, [fetchAllBrands, fetchAllSubCategories, fetchAllFilterTypes]);
+    }, [fetchAllBrands, fetchAllRootCategories, fetchAllSubCategories, fetchAllFilterTypes]);
 
     useEffect(() => {
         fetchDependencies();
@@ -71,20 +68,15 @@ const ProductCreatePage: React.FC = () => {
         setApiError(null);
         setLocalLoading(true);
         
-        // Prepare the payload - now including has_variants
         const payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand' | 'images'> = {
             prod_id: data.prod_id || '',
             prod_name: data.prod_name || '',
             sub_cat_id: data.sub_cat_id || null,
             brand_id: data.brand_id || '',
-            
-            // --- BASE PRICE/QUANTITY FIELDS ---
             base_price: data.base_price || null,
             base_offer_price: data.base_offer_price || null,
             base_quantity: data.base_quantity || null,
-            // ----------------------------------
-            
-            has_variants: data.has_variants || false, // Add the missing property
+            has_variants: data.has_variants || false, 
             can_return: data.can_return ?? true,
             can_replace: data.can_replace ?? true,
             product_filters: data.product_filters || null,
@@ -92,9 +84,7 @@ const ProductCreatePage: React.FC = () => {
 
         try {
             const response = await createProduct(payload);
-            
             alert(`Product ${response.prod_name} created successfully.`);
-            
             router.push(`/mushrif-admin/products/${response.id}`); 
         } catch (err: any) {
             const errorMsg = err.message || 'A network error occurred.';
@@ -104,10 +94,8 @@ const ProductCreatePage: React.FC = () => {
         }
     };
 
-    // Dummy function for onFullDataRefresh (not needed in create page but required by component)
     const handleFullDataRefresh = useCallback(() => {
-        // This is a no-op since this is the create page
-        // No data to refresh yet
+        // No-op for the create page
     }, []);
 
     if (dependenciesLoading) return <LoadingSpinner />;
@@ -121,11 +109,12 @@ const ProductCreatePage: React.FC = () => {
                 error={apiError}
                 
                 allBrands={allBrands}
-                allSubCategories={allSubCategories}
+                allRootCategories={allRootCategories} // FIX: Pass the fetched nested categories
+                allSubCategories={allSubCategories} 
                 allFilterTypes={allFilterTypes}
                 dependenciesLoading={dependenciesLoading}
                 dependenciesError={dependenciesError}
-                onFullDataRefresh={handleFullDataRefresh} // Add the missing prop
+                onFullDataRefresh={handleFullDataRefresh}
             />
         </div>
     );

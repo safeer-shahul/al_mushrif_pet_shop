@@ -1,30 +1,28 @@
 // src/app/layout.tsx
-
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { Providers } from '@/app/providers'; // Corrected path/alias
+import { Providers } from '@/app/providers'; 
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'al_mushrif_pet_shop',
-  description: 'E-commerce platform for pets and supplies.',
+    title: 'Al Mushrif Pet Shop | Quality Supplies & Care',
+    description: 'E-commerce platform for pets and supplies in UAE.',
 };
 
 export default function RootLayout({
-  children,
+    children,
 }: {
-  children: React.ReactNode;
+    children: React.ReactNode;
 }) {
-  return (
-    <html lang="en">
-      <body className={inter.className}>
-        {/* Wrap children with Providers to give global access to AuthContext */}
-        <Providers>
-          {children}
-        </Providers>
-      </body>
-    </html>
-  );
+    return (
+        <html lang="en">
+            <body className={inter.className}>
+                <Providers>
+                    {children}
+                </Providers>
+            </body>
+        </html>
+    );
 }
