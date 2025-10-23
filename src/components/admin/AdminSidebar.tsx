@@ -9,7 +9,8 @@ import {
     FaTachometerAlt, FaBoxOpen, FaTags, FaFilter,
     FaShoppingBag, FaFileAlt, FaUsers, FaSignOutAlt,
     FaChevronDown, FaChevronRight, FaFolder, FaFolderOpen,
-    FaLayerGroup, FaBars, FaTimes, FaAngleRight, FaBullhorn
+    FaLayerGroup, FaBars, FaTimes, FaAngleRight, FaBullhorn,
+    FaGift
 } from 'react-icons/fa'; // Added FaBullhorn
 
 interface AdminSidebarProps {
@@ -38,6 +39,10 @@ const menuItems: MenuItem[] = [
     },
     { name: 'Brands', href: '/mushrif-admin/brands', icon: FaTags },
     { name: 'Filters', href: '/mushrif-admin/filters', icon: FaFilter },
+
+    { name: 'Offers', href: '/mushrif-admin/offers', icon: FaGift }, 
+    { name: 'Brands', href: '/mushrif-admin/brands', icon: FaTags },
+
     { name: 'Orders', href: '/mushrif-admin/orders', icon: FaShoppingBag },
     { 
         name: 'Content', 

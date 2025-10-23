@@ -1,10 +1,13 @@
 // src/components/public/CartDrawer.tsx
 'use client';
 
-import React, { useMemo } from 'react';
-import { FaTimes, FaShoppingCart, FaTrash, FaPlus, FaMinus, FaLock, FaBox } from 'react-icons/fa';
+import React, { useMemo, useState } from 'react'; 
+import { FaTimes, FaShoppingCart, FaTrash, FaPlus, FaMinus, FaLock, FaBox, FaSpinner } from 'react-icons/fa';
 import { useCart } from '@/context/CartContext';
 import LoadingSpinner from '../ui/LoadingSpinner';
+import CheckoutModal from './CheckoutModal'; // IMPORT NEW MODAL
+import Link from 'next/link';
+import { useCategoryService } from '@/services/admin/categoryService';
 
 interface CartDrawerProps {
     isOpen: boolean;
@@ -13,19 +16,21 @@ interface CartDrawerProps {
 
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
     const { cart, cartCount, cartLoading, removeItem, updateItemQuantity } = useCart();
+    const { getStorageUrl } = useCategoryService(); // For image URL utility
+    
+    // NEW STATE: Control the checkout modal visibility
+    const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false); 
 
-    // Calculate totals (simplified for now)
+    // Calculate totals
     const { totalItemsPrice, totalDiscount } = useMemo(() => {
         let itemsPrice = 0;
         let discount = 0;
-
         cart?.items.forEach(item => {
             const price = item.variant.price || 0;
             const offerPrice = item.variant.offer_price || 0;
             
             itemsPrice += price * item.quantity;
             
-            // Calculate discount if an offer price exists
             if (offerPrice > 0 && offerPrice < price) {
                 discount += (price - offerPrice) * item.quantity;
             }
@@ -46,12 +51,10 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
         }
     };
     
-    // Placeholder for checkout initiation
+    // Handler to open the Checkout Modal
     const handleCheckout = () => {
-        // Here we would open the Checkout Modal (to be implemented later)
-        onClose(); // Close drawer
-        // router.push('/checkout'); // Or dispatch an action to open the modal
-        alert("Proceeding to checkout...");
+        onClose(); // Close the drawer first
+        setIsCheckoutModalOpen(true); // Open the checkout wizard
     }
 
 
@@ -179,7 +182,8 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                             
                             <button
                                 onClick={handleCheckout}
-                                className="w-full mt-4 py-3 text-white font-semibold rounded-lg flex items-center justify-center shadow-lg transition-colors"
+                                disabled={payablePrice <= 0}
+                                className="w-full mt-4 py-3 text-white font-semibold rounded-lg flex items-center justify-center shadow-lg transition-colors disabled:bg-gray-400"
                                 style={{ backgroundColor: 'var(--color-primary-light)' }}
                             >
                                 <FaLock className="mr-2 w-4 h-4" /> Proceed to Checkout
@@ -188,6 +192,11 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                     </>
                 )}
             </div>
+            {/* Checkout Modal Renders Here */}
+            <CheckoutModal 
+                isOpen={isCheckoutModalOpen} 
+                onClose={() => setIsCheckoutModalOpen(false)} 
+            />
         </>
     );
 };

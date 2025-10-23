@@ -1,5 +1,7 @@
 // src/types/content.ts
 
+import { Product } from "./product";
+
 export interface Marquee {
     id: string;
     content: string;
@@ -15,7 +17,7 @@ export interface HomeSection {
     is_active: boolean;
     order_sequence: number;
     offer_id: string | null;
-    // Relationships (will be simplified for public API)
+    products?: Product[]; // Transient property for frontend display
 }
 
 export interface HeroSection {

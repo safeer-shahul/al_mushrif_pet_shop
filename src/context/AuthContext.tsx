@@ -10,14 +10,26 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 
 // FIX: ADD 'export' HERE
 export interface User {
-  id: number;
-  name: string | null; 
-  email: string;
-  username: string;
-  is_superuser: boolean;
-  is_staff: boolean;
-  first_name: string | null;
-  last_name: string | null;
+    id: string; 
+    username: string;
+    email: string;
+    first_name: string | null;
+    last_name: string | null;
+    is_superuser: boolean;
+    is_staff: boolean;
+    // Relationships for checkout
+    addresses?: Address[];
+}
+
+export interface Address {
+    id: string; // UUID
+    user_id?: string;
+    address_line1: string;
+    address_line2: string | null;
+    phone_numbers: string[]; // JSON array of numbers
+    zip_pin: string;
+    street: string | null;
+    is_default?: boolean;
 }
 
 // Define the shape of the authentication context

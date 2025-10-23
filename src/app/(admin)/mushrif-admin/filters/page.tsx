@@ -78,6 +78,8 @@ const FilterItemRow: React.FC<FilterItemRowProps> = ({ typeId, item, onItemUpdat
     );
 };
 
+// ---
+
 // =================================================================
 // 2. Filter Type Card Component (Main Container)
 // =================================================================
@@ -163,15 +165,15 @@ const FilterTypeCard: React.FC<FilterTypeCardProps> = ({ type, onTypeUpdate, onT
                 <div className="flex items-center space-x-3">
                     {isTypeEditing ? (
                          <input
-                            type="text"
-                            value={newTypeName}
-                            onChange={(e) => setNewTypeName(e.target.value)}
-                            onBlur={handleTypeSave}
-                            onKeyDown={(e) => e.key === 'Enter' && handleTypeSave()}
-                            className="text-lg font-semibold px-2 py-1 border border-blue-300 rounded"
-                            disabled={typeLoading}
-                            autoFocus
-                        />
+                             type="text"
+                             value={newTypeName}
+                             onChange={(e) => setNewTypeName(e.target.value)}
+                             onBlur={handleTypeSave}
+                             onKeyDown={(e) => e.key === 'Enter' && handleTypeSave()}
+                             className="text-lg font-semibold px-2 py-1 border border-blue-300 rounded"
+                             disabled={typeLoading}
+                             autoFocus
+                         />
                     ) : (
                         <h3 className="text-lg font-semibold text-slate-800">{type.filter_type_name}</h3>
                     )}
@@ -179,10 +181,10 @@ const FilterTypeCard: React.FC<FilterTypeCardProps> = ({ type, onTypeUpdate, onT
                 </div>
 
                 <div className="flex items-center space-x-2">
-                    <button onClick={(e) => { e.stopPropagation(); setIsTypeEditing(true); }} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="Edit Type">
+                    <button onClick={(e) => { e.stopPropagation(); setIsTypeEditing(true); }} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="Edit Type" disabled={isTypeEditing}>
                         <FaEdit size={14} />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onTypeDelete(type.id, type.filter_type_name); }} className="p-1 text-gray-500 hover:text-red-600 transition-colors" title="Delete Type">
+                    <button onClick={(e) => { e.stopPropagation(); onTypeDelete(type.id, type.filter_type_name); }} className="p-1 text-gray-500 hover:text-red-600 transition-colors" title="Delete Type" disabled={isTypeEditing}>
                         <FaTrash size={14} />
                     </button>
                     {isExpanded ? <FaChevronDown size={14} className="text-gray-500" /> : <FaChevronRight size={14} className="text-gray-500" />}
@@ -194,7 +196,11 @@ const FilterTypeCard: React.FC<FilterTypeCardProps> = ({ type, onTypeUpdate, onT
                 <div className="p-4 bg-gray-50">
                     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                         <ul className="divide-y divide-gray-100">
-                            {type.items && type.items.length > 0 ? (
+                            {itemLoading ? (
+                                <li className="flex items-center justify-center p-4">
+                                    <LoadingSpinner />
+                                </li>
+                            ) : type.items && type.items.length > 0 ? (
                                 type.items.map(item => (
                                     <FilterItemRow 
                                         key={item.id} 
@@ -235,6 +241,7 @@ const FilterTypeCard: React.FC<FilterTypeCardProps> = ({ type, onTypeUpdate, onT
     );
 };
 
+// ---
 
 // =================================================================
 // 3. Main Page Component
@@ -253,7 +260,10 @@ const FilterListPage: React.FC = () => {
     const loadFilters = useCallback(async () => {
         if (loading && hasFetchedRef.current) return;
         
-        setLoading(true);
+        // Prevent setting loading to true if we're only loading for the first time
+        // but set it to true for refresh
+        if (hasFetchedRef.current) setLoading(true); 
+
         setError(null);
         
         try {
@@ -286,7 +296,7 @@ const FilterListPage: React.FC = () => {
             setNewTypeName('');
             
             // Reload the list to include the new type
-            hasFetchedRef.current = false;
+            // Setting hasFetchedRef.current to false isn't necessary here, just call loadFilters
             await loadFilters();
         } catch (err: any) {
             setError(err.message || 'Failed to create filter type.');
@@ -304,24 +314,24 @@ const FilterListPage: React.FC = () => {
         try {
             await deleteFilterType(id);
             
-            // Show success toast
+            // Show success toast (simplified for this example)
             const toast = document.createElement('div');
             toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
             toast.textContent = `Filter Type "${name}" deleted successfully.`;
             document.body.appendChild(toast);
             setTimeout(() => document.body.removeChild(toast), 3000);
             
-            // Reload the list
+            // Update list optimistically
             setFilterTypes(prev => prev.filter(type => type.id !== id));
             await loadFilters(); // Ensures full refresh
         } catch (err: any) {
-            setError(err.message || 'Failed to delete filter type.');
+            setError(err.message || 'Failed to delete filter type. It might be in use.');
         } finally {
             setLoading(false);
         }
     };
     
-    // Handler for local update (Type Card calls this when a type is updated)
+    // Handler for local update (Type Card calls this when a type or item is updated)
     const handleTypeUpdate = (updatedType: FilterType) => {
         setFilterTypes(prev => prev.map(type => 
             type.id === updatedType.id ? updatedType : type
@@ -343,7 +353,7 @@ const FilterListPage: React.FC = () => {
                     className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors shadow-sm disabled:opacity-50"
                 >
                     <FaSync className={`inline-block mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    {loading ? 'Loading...' : 'Refresh Filters'}
+                    {loading && filterTypes.length === 0 ? 'Loading...' : 'Refresh Filters'}
                 </button>
             </div>
 
