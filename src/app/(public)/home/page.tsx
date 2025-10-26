@@ -2,7 +2,8 @@
 'use client';
 
 import HeroSectionComponent from '@/components/public/HeroSection';
-import HomeSectionComponent from '@/components/public/HomeSection'; // This component now fetches ALL sections
+import HomeSectionComponent from '@/components/public/HomeSection'; 
+import OfferSlider from '@/components/public/OfferSlider'; // 💡 NEW IMPORT
 import React from 'react';
 
 /**
@@ -14,9 +15,13 @@ export default function HomePage() {
             {/* 1. Hero/Banner Section (Carousel) */}
             <HeroSectionComponent />
 
+            {/* 💡 NEW: Offer Slider Section */}
+            <div className="container mx-auto px-4">
+                 <OfferSlider />
+            </div>
+            
             <div className="container mx-auto px-4 space-y-12">
-                {/* 2. Dynamic Home Sections: RENDER ONLY ONCE. 
-                    The component internally fetches and loops based on active API sections. */}
+                {/* 2. Dynamic Home Sections */}
                 <HomeSectionComponent /> 
             </div>
             

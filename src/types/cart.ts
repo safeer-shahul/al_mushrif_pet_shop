@@ -14,10 +14,13 @@ export interface CartItem {
     created_at: string;
     updated_at: string;
     
-    // Relationship: Nested variant data (which might be the implicit variant for base products)
-    variant: ProdVariant & { product: { prod_name: string } }; 
+    // Relationship: Nested variant data 
+    variant: ProdVariant & { product: { id: string, prod_name: string } }; 
     
-    // Convenience property to get the primary image URL directly
+    calculated_price: number; 
+    item_total_price: number;
+    item_discount: number;
+
     primary_image_url?: string | null; 
 }
 
@@ -30,6 +33,13 @@ export interface Cart {
     items: CartItem[];
     created_at: string;
     updated_at: string;
+
+    totals: {
+        total_actual_price: number;
+        total_discount: number;
+        payable_price: number;
+        shipping_price: number;
+    } | null; 
 }
 
 /**
@@ -41,8 +51,13 @@ export interface CartContextType {
     cartLoading: boolean;
     error: string | null;
     
+    // 💡 FIX 1: Add the state getter
+    isCartDrawerOpen: boolean; 
+    // 💡 FIX 2: Add the state setter
+    setIsCartDrawerOpen: (isOpen: boolean) => void; 
+    
     // Cart Actions (exposed to components)
-    fetchCart: (isLoggedIn?: boolean) => Promise<void>;
+    fetchCart: () => Promise<void>;
     addItem: (prodVariantId: string, quantity: number) => Promise<void>;
     updateItemQuantity: (prodVariantId: string, quantity: number) => Promise<void>;
     removeItem: (prodVariantId: string) => Promise<void>;

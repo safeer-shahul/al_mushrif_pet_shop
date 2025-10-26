@@ -18,12 +18,13 @@ export interface ProductQueryParams {
     brand_id?: string;
     search?: string;
     offer_id?: string;
-    filter_items?: string; // Comma-separated list of filter item IDs
+    filter_items?: string; 
     min_price?: number;
     max_price?: number;
     color?: string;
     page?: number;
-    // Add sorting later if needed
+
+    sort?: string; 
 }
 
 /**

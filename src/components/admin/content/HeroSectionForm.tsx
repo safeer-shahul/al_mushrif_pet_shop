@@ -1,11 +1,15 @@
+// src/components/admin/content/HeroSectionForm.tsx
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FaSave, FaImage, FaLink, FaStar, FaTimes } from 'react-icons/fa';
 import { HeroSection } from '@/types/content';
 import ImageUploadField from '@/components/ui/ImageUploadField'; 
 import { useCategoryService } from '@/services/admin/categoryService'; 
+// 💡 Import useOfferService
+import { useOfferService } from '@/services/admin/offerService';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner'; // Ensure this is imported
 
 interface HeroSectionFormProps {
     initialData?: Partial<HeroSection>;
@@ -14,15 +18,22 @@ interface HeroSectionFormProps {
     onCancel: () => void;
     isLoading: boolean;
     apiError: string | null;
-    availableOffers: { id: string; name: string }[]; 
+    // ❌ Removed static 'availableOffers' prop
+    // availableOffers: { id: string; name: string }[]; 
 }
 
 const HeroSectionForm: React.FC<HeroSectionFormProps> = ({ 
-    initialData, isEditMode, onSave, onCancel, isLoading, apiError, availableOffers 
+    initialData, isEditMode, onSave, onCancel, isLoading, apiError 
+    // ❌ Removed 'availableOffers' from destructuring
 }) => {
-    // Rely on the existing service hook for the utility function
     const { getStorageUrl } = useCategoryService(); 
+    // 💡 NEW: Initialize Offer Service
+    const { fetchAllOffers } = useOfferService();
     
+    // 💡 NEW STATE: Store dynamic offers
+    const [availableOffers, setAvailableOffers] = useState<{ id: string; name: string }[]>([]);
+    const [offersLoading, setOffersLoading] = useState(true);
+
     const [formData, setFormData] = useState<Partial<HeroSection>>(initialData || { 
         is_active: true,
         order_sequence: 0,
@@ -36,6 +47,32 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
     const imagePreviewUrl = useMemo(() => {
         return initialData?.image ? getStorageUrl(initialData.image) : null;
     }, [initialData, getStorageUrl]);
+
+    // 1. Fetch Offers on Mount
+    const loadOffers = useCallback(async () => {
+        setOffersLoading(true);
+        try {
+            const offersData = await fetchAllOffers();
+            
+            // Map the full Offer object to the simple { id, name } structure needed for the dropdown
+            const mappedOffers = offersData.map(offer => ({
+                id: offer.id,
+                name: `${offer.offer_name} (${offer.type.toUpperCase()})`
+            }));
+
+            setAvailableOffers(mappedOffers);
+        } catch (e) {
+            console.error("Failed to fetch offers:", e);
+            // Show a non-blocking toast/error that offers failed to load
+            toast.error("Failed to load available offers for selection.", { id: 'offer-load-error' });
+        } finally {
+            setOffersLoading(false);
+        }
+    }, [fetchAllOffers]);
+
+    useEffect(() => {
+        loadOffers();
+    }, [loadOffers]);
 
     // Sync initial data and reset local state when initialData changes
     useEffect(() => {
@@ -60,7 +97,7 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
     // Handlers for ImageUploadField utility
     const handleFileChange = (file: File | null) => {
         setImageFile(file);
-        setImageRemoved(false); // If a new file is selected, removal flag is reset
+        setImageRemoved(false);
     };
 
     const handleRemoveExisting = (removed: boolean) => {
@@ -76,8 +113,8 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
         
         // 1. Client-Side Validation: Image check (mandatory for new banners)
         if (!isEditMode && !imageFile) {
-             setLocalError("A banner image is required.");
-             return;
+            setLocalError("A banner image is required.");
+            return;
         }
         
         // 2. Client-Side Validation: Link Check (Softened - allow saving without a link)
@@ -92,8 +129,12 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
         await onSave(formData, imageFile, imageRemoved, isEditMode);
     };
     
-    // Determine the URL to display in the preview
     const currentPreview = imageFile ? URL.createObjectURL(imageFile) : (imageRemoved ? null : imagePreviewUrl);
+
+    // Show a spinner if we are loading offers or performing an action
+    if (offersLoading) {
+        return <LoadingSpinner />;
+    }
 
     return (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -111,7 +152,7 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
 
             <div className="p-6 space-y-6">
                 
-                {/* 1. Image Upload Field (Uses the reusable utility component) */}
+                {/* 1. Image Upload Field */}
                 <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-700">
                         Banner Image (Max 2MB) <span className={isEditMode ? 'text-gray-400' : 'text-red-500'}>*</span>
@@ -125,7 +166,7 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
                         onRemoveExisting={handleRemoveExisting}
                         disabled={isLoading}
                     />
-                     <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500">
                         File should be landscape (e.g., 1200x400px)
                     </p>
                 </div>
@@ -149,7 +190,7 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
                     </div>
                     <div className="space-y-2">
                         <label htmlFor="offer_id" className="block text-sm font-medium text-slate-700 flex items-center">
-                            <FaStar className='mr-2' /> Link to Specific Offer (Optional)
+                            <FaStar className='mr-2 text-yellow-500' /> Link to Specific Offer (Optional)
                         </label>
                         <select
                             id="offer_id"
@@ -164,6 +205,7 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
                                 <option key={offer.id} value={offer.id}>{offer.name}</option>
                             ))}
                         </select>
+                        <p className='text-xs text-gray-500'>This overrides the Internal Slug.</p>
                     </div>
                 </div>
 

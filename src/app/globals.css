@@ -2,6 +2,10 @@
 
 @import "tailwindcss";
 
+body, html, .app-font-strict {
+  font-family: "Nunito Sans", sans-serif !important; 
+}
+
 /*
 |--------------------------------------------------------------------------
 | Custom Tailwind v4 Theme Configuration

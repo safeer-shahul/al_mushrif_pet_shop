@@ -1,10 +1,13 @@
-// src/app/layout.tsx
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Nunito_Sans } from 'next/font/google'; // 💡 Import the font
 import './globals.css';
 import { Providers } from '@/app/providers'; 
 
-const inter = Inter({ subsets: ['latin'] });
+// 💡 Define the font without the 'variable' property, as we won't use it directly
+const nunito = Nunito_Sans({ 
+    subsets: ['latin'],
+    // We can still define the variable for CSS use, but the simpler option is just to load it:
+});
 
 export const metadata: Metadata = {
     title: 'Al Mushrif Pet Shop | Quality Supplies & Care',
@@ -17,8 +20,10 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="en">
-            <body className={inter.className}>
+        // 💡 FIX 1: Apply a custom, strict CSS class to the HTML tag
+        <html lang="en" className="app-font-strict"> 
+            {/* We apply NO font utility classes here. */}
+            <body > 
                 <Providers>
                     {children}
                 </Providers>

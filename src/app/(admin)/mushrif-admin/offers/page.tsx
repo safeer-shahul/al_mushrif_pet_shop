@@ -18,7 +18,7 @@ const OfferListPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const hasFetchedRef = useRef(false);
 
-    // Load function
+    // Load function (unchanged)
     const loadOffers = useCallback(async () => {
         if (loading && hasFetchedRef.current) return;
         
@@ -53,14 +53,12 @@ const OfferListPage: React.FC = () => {
             setError(null);
             await deleteOffer(id);
             
-            // Show success toast (using inline element as seen in your other files)
             const toast = document.createElement('div');
             toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
             toast.textContent = 'Offer deleted successfully.';
             document.body.appendChild(toast);
             setTimeout(() => document.body.removeChild(toast), 3000);
             
-            // Reload the list
             hasFetchedRef.current = false;
             await loadOffers();
         } catch (err: any) {
@@ -69,14 +67,22 @@ const OfferListPage: React.FC = () => {
         }
     };
 
+    // 💡 FIX APPLIED HERE: Use parseFloat() before .toFixed()
     const getDiscountDisplay = (offer: Offer) => {
+        const discountValue = offer.discount_percent !== null ? parseFloat(String(offer.discount_percent)) : 0;
+        const minCartAmount = offer.min_cart_amount !== null ? parseFloat(String(offer.min_cart_amount)) : 0;
+        
         switch (offer.type) {
             case 'percentage':
-                return `${offer.discount_percent?.toFixed(0) || 0}% OFF`;
+                return `${discountValue.toFixed(0)}% OFF`;
+            case 'fixed_amount':
+                return `AED ${discountValue.toFixed(2)} OFF`;
             case 'bogo':
                 return `Buy ${offer.min_qty} Get ${offer.free_qty} Free`;
-            case 'fixed_amount':
-                return `AED ${offer.discount_percent?.toFixed(2) || 'N/A'} OFF`;
+            case 'cart_total_percentage':
+                return `${discountValue.toFixed(0)}% OFF (Min AED ${minCartAmount.toFixed(2)})`;
+            case 'cart_total_fixed':
+                return `AED ${discountValue.toFixed(2)} OFF (Min AED ${minCartAmount.toFixed(2)})`;
             default:
                 return 'Custom/Unknown';
         }
@@ -97,7 +103,7 @@ const OfferListPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header section with actions */}
+            {/* Header section with actions (unchanged) */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Offer Management</h1>
@@ -120,7 +126,7 @@ const OfferListPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Error alert */}
+            {/* Error alert (unchanged) */}
             {error && (
                 <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
                     <p className="text-sm text-red-700">{error}</p>
@@ -178,7 +184,7 @@ const OfferListPage: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                /* Empty state */
+                /* Empty state (unchanged) */
                 !loading && (
                     <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 mb-4">

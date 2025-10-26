@@ -29,6 +29,8 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
     { name: 'Dashboard', href: '/mushrif-admin', icon: FaTachometerAlt },
     { name: 'Products', href: '/mushrif-admin/products', icon: FaBoxOpen },
+    
+    // Ensure this grouping name is unique
     { 
         name: 'Categories', 
         icon: FaFolder,
@@ -37,20 +39,22 @@ const menuItems: MenuItem[] = [
             { name: 'Sub Categories', href: '/mushrif-admin/sub-categories', icon: FaLayerGroup }
         ]
     },
-    { name: 'Brands', href: '/mushrif-admin/brands', icon: FaTags },
-    { name: 'Filters', href: '/mushrif-admin/filters', icon: FaFilter },
-
+    
+    // **CHECK THIS LINE**: This is for the new Offers page
     { name: 'Offers', href: '/mushrif-admin/offers', icon: FaGift }, 
-    { name: 'Brands', href: '/mushrif-admin/brands', icon: FaTags },
-
+    
+    // **CHECK THIS LINE**: This is for the Brands page
+    { name: 'Brands', href: '/mushrif-admin/brands', icon: FaTags }, 
+    
+    { name: 'Filters', href: '/mushrif-admin/filters', icon: FaFilter },
     { name: 'Orders', href: '/mushrif-admin/orders', icon: FaShoppingBag },
+    
+    // Ensure this grouping name is unique
     { 
         name: 'Content', 
         icon: FaFileAlt,
         children: [
-            // Assuming this is the general page for Hero/Home Sections
             { name: 'Hero/Home Sections', href: '/mushrif-admin/content', icon: FaFileAlt }, 
-            // NEW LINK
             { name: 'Marquee Text', href: '/mushrif-admin/content/marquee', icon: FaBullhorn },
         ]
     },
