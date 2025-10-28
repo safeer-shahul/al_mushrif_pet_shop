@@ -25,7 +25,9 @@ export interface ProdVariant {
     price: number;
     offer_price: number | null;
     color_value: string | null;
-    images?: ProductImage[]; // Array of image objects
+    images?: ProductImage[]; 
+    quantity?: number;       
+    is_active?: boolean;      
     created_at: string;
     updated_at: string;
 }
@@ -51,15 +53,18 @@ export interface Product {
     base_offer_price: number | null;
     base_quantity: number | null; 
     
+    // Ensure this is explicitly a boolean
+    has_variants: boolean;
+    
+    // Add these new properties
+    is_disabled?: boolean;    
+    quantity?: number;
+    
     created_at: string;
     updated_at: string;
     
-    // Add this flag to track whether a product should use variants
-    has_variants: boolean; 
-
-    // Relationships
     variants?: ProdVariant[];
-    images?: ProductImage[]; // Base product images (prod_variant_id is null)
+    images?: ProductImage[];
     category?: SubCategory;
     brand?: Brand;
 }

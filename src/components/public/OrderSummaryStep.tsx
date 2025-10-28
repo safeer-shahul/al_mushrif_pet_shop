@@ -44,14 +44,41 @@ const OrderSummaryStep: React.FC<OrderSummaryStepProps> = ({
             {/* Items List */}
             <h4 className="text-md font-bold text-slate-700">Items ({cart.items.length})</h4>
             <div className="max-h-48 overflow-y-auto space-y-3 p-2 border rounded-lg bg-gray-50">
-                {cart.items.map((item: CartItem) => (
-                    <div key={item.id} className="flex justify-between items-center text-sm">
-                        <span className='truncate'>{item.variant.product.prod_name} ({item.quantity}x)</span>
-                        <span className="font-medium flex-shrink-0 ml-2">
-                            AED {(item.variant.offer_price || item.variant.price).toFixed(2)}
-                        </span>
-                    </div>
-                ))}
+                {cart.items.map((item: CartItem) => {
+                    // Ensure we have valid numbers for price calculation
+                    let displayPrice = "0.00";
+                    
+                    try {
+                        // Try to get a valid price from offer_price or price
+                        const price = item.variant?.price !== undefined 
+                            ? parseFloat(String(item.variant.price)) 
+                            : 0;
+                        
+                        const offerPrice = item.variant?.offer_price !== undefined && item.variant.offer_price !== null
+                            ? parseFloat(String(item.variant.offer_price)) 
+                            : null;
+                        
+                        // Use offer_price if it exists, otherwise use regular price
+                        const finalPrice = offerPrice !== null ? offerPrice : price;
+                        
+                        // Format only if we have a valid number
+                        if (!isNaN(finalPrice)) {
+                            displayPrice = finalPrice.toFixed(2);
+                        }
+                    } catch (e) {
+                        console.error("Price formatting error:", e);
+                        // Fallback to 0 if anything goes wrong
+                    }
+                    
+                    return (
+                        <div key={item.id} className="flex justify-between items-center text-sm">
+                            <span className="truncate">{item.variant?.product?.prod_name || 'Product'} ({item.quantity}x)</span>
+                            <span className="font-medium flex-shrink-0 ml-2">
+                                AED {displayPrice}
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Payment & Offer Review */}

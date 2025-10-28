@@ -4,6 +4,21 @@ import { ProdVariant, ProductImage } from "./product";
 import { User } from "@/context/AuthContext";
 
 /**
+ * Interface for the nested Product data needed specifically for cart display.
+ * It must include relations required for frontend logic (like image lookup).
+ */
+export interface CartProductDisplay {
+    id: string; 
+    prod_name: string; 
+    base_price: number | null; 
+    
+    // CRITICAL FIX: Add the missing properties from the Product model
+    images?: ProductImage[];
+    has_variants?: boolean;
+}
+
+
+/**
  * Interface for a single item within the cart.
  */
 export interface CartItem {
@@ -15,7 +30,8 @@ export interface CartItem {
     updated_at: string;
     
     // Relationship: Nested variant data 
-    variant: ProdVariant & { product: { id: string, prod_name: string } }; 
+    // FIX: Use the expanded CartProductDisplay type
+    variant: ProdVariant & { product: CartProductDisplay }; 
     
     calculated_price: number; 
     item_total_price: number;
@@ -50,15 +66,12 @@ export interface CartContextType {
     cartCount: number;
     cartLoading: boolean;
     error: string | null;
-    
-    // 💡 FIX 1: Add the state getter
     isCartDrawerOpen: boolean; 
-    // 💡 FIX 2: Add the state setter
     setIsCartDrawerOpen: (isOpen: boolean) => void; 
-    
-    // Cart Actions (exposed to components)
     fetchCart: () => Promise<void>;
     addItem: (prodVariantId: string, quantity: number) => Promise<void>;
     updateItemQuantity: (prodVariantId: string, quantity: number) => Promise<void>;
     removeItem: (prodVariantId: string) => Promise<void>;
+    validateCart: () => Promise<boolean>; // This must be included
+    invalidItems: {id: string, reason: string}[];
 }

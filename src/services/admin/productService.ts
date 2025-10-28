@@ -55,41 +55,51 @@ export const useProductService = () => {
     }, [getClient]);
 
     const createProduct = useCallback(async (productData: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand' | 'images'>) => {
-        const api = getClient();
-        try {
-            await getCsrfToken();
-            
-            // Prepare payload: Includes new base prices/quantity, Booleans to 1/0, Filters to JSON string
-            const payload = {
-                ...productData,
-                base_price: productData.base_price, 
-                base_offer_price: productData.base_offer_price,
-                base_quantity: productData.base_quantity,
-                has_variants: productData.has_variants ? 1 : 0, // Convert to 1/0 for Laravel
-                can_return: productData.can_return ? 1 : 0,
-                can_replace: productData.can_replace ? 1 : 0,
-                product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,
-            };
-            
-            const response = await api.post(PRODUCT_API_ENDPOINT, payload);
-            return response.data.product as Product;
-        } catch (error: any) {
-            throw new Error(error.response?.data?.message || 'Failed to create product.');
-        }
-    }, [getClient]);
+    const api = getClient();
+    try {
+        await getCsrfToken();
+        
+        // Prepare payload
+        const payload = {
+            ...productData,
+            // No change here - the issue is in how the backend processes this field
+            has_variants: productData.has_variants ? 1 : 0,
+            can_return: productData.can_return ? 1 : 0,
+            can_replace: productData.can_replace ? 1 : 0,
+            product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,
+        };
+        
+        console.log('Sending payload:', payload); // Add this to debug
+        
+        const response = await api.post(PRODUCT_API_ENDPOINT, payload);
+        return response.data.product as Product;
+    } catch (error: any) {
+        throw new Error(error.response?.data?.message || 'Failed to create product.');
+    }
+}, [getClient]);
 
     const updateProduct = useCallback(async (id: string, productData: Partial<Product>) => {
         const api = getClient();
         try {
             await getCsrfToken();
             
-            // Prepare payload for update
+            // Prepare payload for update - NEED TO ADD THE SAME CONVERSIONS AS IN createProduct
             const payload = {
-                // ...your existing payload preparation
+                ...productData,
+                // Ensure consistent handling of boolean fields between create and update
+                has_variants: productData.has_variants ? 1 : 0, // Convert to 1/0 for Laravel
+                can_return: productData.can_return ? 1 : 0,
+                can_replace: productData.can_replace ? 1 : 0,
+                // Handle product filters properly
+                product_filters: productData.product_filters ? 
+                    (typeof productData.product_filters === 'string' ? 
+                        productData.product_filters : 
+                        JSON.stringify(productData.product_filters)
+                    ) : null,
             };
             
             // Call the update endpoint
-            await api.put(`${PRODUCT_API_ENDPOINT}/${id}`, payload);
+            const response = await api.put(`${PRODUCT_API_ENDPOINT}/${id}`, payload);
             
             // After update, fetch the complete product data with all relationships
             const updatedProduct = await fetchProductById(id);

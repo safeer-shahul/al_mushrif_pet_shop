@@ -78,10 +78,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Login function: Store token and user data
   const login = (userData: User, jwtToken: string) => {
-    setUser(userData);
-    setToken(jwtToken);
-    localStorage.setItem('authToken', jwtToken);
-    localStorage.setItem('authUser', JSON.stringify(userData));
+      setUser(userData);
+      setToken(jwtToken);
+      localStorage.setItem('authToken', jwtToken);
+      localStorage.setItem('authUser', JSON.stringify(userData));
+      
+      // Trigger cart sync event
+      if (typeof window !== 'undefined' && window.dispatchEvent) {
+          window.dispatchEvent(new Event('user-logged-in'));
+      }
   };
 
   // Logout function: Clear state and storage
@@ -90,8 +95,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
-    // Optional: Redirect to login page after logout
-    // window.location.href = '/login'; 
+  
+    window.location.href = '/'; 
   };
   
   // Memoized context value to prevent unnecessary re-renders

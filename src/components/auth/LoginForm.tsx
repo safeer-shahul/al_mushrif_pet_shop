@@ -6,7 +6,7 @@ import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 interface LoginFormProps {
   onSubmit: (identifier: string, password: string) => Promise<void>;
-  emailLabel?: string; 
+  emailLabel?: string;
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, emailLabel }) => {
@@ -19,7 +19,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, emailLabel }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await onSubmit(identifier, password); 
+      await onSubmit(identifier, password);
     } catch (error) {
       // Error handling is done in the parent page component
     } finally {
@@ -35,7 +35,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, emailLabel }) => {
     <form className="space-y-6" onSubmit={handleSubmit}>
       <div>
         <label htmlFor="identifier" className="block text-sm font-medium text-slate-700">
-          {emailLabel || 'Email or Username'} 
+          {emailLabel || 'Email or Username'}
         </label>
         <div className="mt-1">
           <input
@@ -85,8 +85,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, emailLabel }) => {
         type="submit"
         disabled={loading}
         className={`w-full flex justify-center py-2.5 px-4 rounded-lg text-white font-medium shadow-sm ${
-          loading 
-            ? 'bg-gray-400 cursor-not-allowed' 
+          loading
+            ? 'bg-gray-400 cursor-not-allowed'
             : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600'
         }`}
       >

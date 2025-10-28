@@ -4,16 +4,18 @@
 import React, { useState } from 'react';
 import LoginForm from '../auth/LoginForm';
 import GoogleLoginButton from '../auth/GoogleLoginButton';
-import { FaTimes, FaUser, FaLock } from 'react-icons/fa';
+import { FaTimes, FaLock } from 'react-icons/fa';
 import { loginUser } from '@/utils/authApi';
 import { useAuth } from '@/context/AuthContext';
 
 interface LoginModalProps {
     isOpen: boolean;
     onClose: () => void;
+    // 💡 FIX 1: Add the optional onLoginSuccess prop to the interface
+    onLoginSuccess?: () => void;
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLoginSuccess }) => { // 💡 Destructure the prop
     const { login } = useAuth();
     const [error, setError] = useState<string | null>(null);
     const [loginSuccess, setLoginSuccess] = useState(false);
@@ -24,7 +26,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
         login(user, token);
         setLoginSuccess(true);
         setError(null);
-        setTimeout(onClose, 800); // Close modal after a brief delay
+
+        setTimeout(() => {
+            onClose();
+            // 💡 FIX 2: Call the callback on successful login
+            if (onLoginSuccess) onLoginSuccess();
+        }, 800);
     };
 
     const handleSubmit = async (identifier: string, password: string) => {
@@ -39,9 +46,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center">
             <div className="relative bg-white w-full max-w-md mx-4 my-8 p-6 rounded-xl shadow-2xl transform transition-all">
-                
+
                 {/* Close Button */}
                 <button
                     className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -58,7 +65,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                     </h2>
                     <p className="text-sm text-gray-500">Access your cart, wishlist, and profile.</p>
                 </div>
-                
+
                 {/* Success State */}
                 {loginSuccess && (
                      <div className="p-4 mb-4 text-center text-sm font-medium text-green-700 bg-green-100 rounded-lg">

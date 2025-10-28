@@ -2,50 +2,51 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { FaMapMarkerAlt, FaEdit, FaTrash, FaPlus, FaCheckCircle, FaSpinner } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaEdit, FaTrash, FaPlus, FaCheckCircle, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
 import { Address } from '@/types/user';
 import { useAddressService } from '@/services/public/addressService';
 import LoadingSpinner from '../ui/LoadingSpinner';
-import AddressForm from './AddressForm'; // Import the reusable form
+import AddressForm from './AddressForm';
 import { toast } from 'react-hot-toast';
 
 interface AddressSelectionStepProps {
     selectedAddress: Address | null;
-    setSelectedAddress: (address: Address) => void;
+    setSelectedAddress: (address: Address | null) => void;
     onContinue: () => void;
 }
 
 const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
-    selectedAddress,
-    setSelectedAddress,
-    onContinue,
-}) => {
-    const { fetchUserAddresses, deleteAddress } = useAddressService();
-    
-    const [addresses, setAddresses] = useState<Address[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false); // Controls form submission state
-    const [error, setError] = useState<string | null>(null);
+        selectedAddress,
+        setSelectedAddress,
+        onContinue,
+    }) => {
+        const { fetchUserAddresses, deleteAddress } = useAddressService();
+        
+        const [addresses, setAddresses] = useState<Address[]>([]);
+        const [loading, setLoading] = useState(true);
+        const [isSaving, setIsSaving] = useState(false); 
+        const [error, setError] = useState<string | null>(null);
 
-    // State for managing the Address Form (Add/Edit Modal)
-    const [showAddressForm, setShowAddressForm] = useState(false);
-    const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+        // State for managing the Address Form
+        const [showAddressForm, setShowAddressForm] = useState(false);
+        const [editingAddress, setEditingAddress] = useState<Address | null>(null);
 
-    const loadAddresses = useCallback(async () => {
+        const loadAddresses = useCallback(async () => {
         setLoading(true);
         setError(null);
+        
         try {
             const data = await fetchUserAddresses();
-            setAddresses(data);
+            setAddresses(data || []);
             
-            // If no address is selected, default to the first one or the default one
-            if (!selectedAddress && data.length > 0) {
+            // If we find the addresses, ensure a selection is made IF we haven't selected one yet.
+            if (data.length > 0 && !selectedAddress) {
                 const defaultAddress = data.find(a => a.is_default) || data[0];
-                setSelectedAddress(defaultAddress);
+                // We use the setter here, forcing one re-run but ensuring initialization.
+                setSelectedAddress(defaultAddress); 
             }
         } catch (err: any) {
-            setError(err.message || "Could not load addresses.");
-            setAddresses([]);
+            // ...
         } finally {
             setLoading(false);
         }
@@ -56,7 +57,6 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
     }, [loadAddresses]);
 
     // --- Form Management Handlers ---
-
     const handleAddAddress = () => {
         setEditingAddress(null);
         setShowAddressForm(true);
@@ -72,7 +72,6 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
         setEditingAddress(null);
     }
     
-    // Called by AddressForm on successful create/update
     const handleSaveSuccess = (savedAddress: Address) => {
         setShowAddressForm(false);
         setEditingAddress(null);
@@ -85,7 +84,6 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
     }
 
     // --- Delete Handler ---
-
     const handleDelete = async (id: string, addressLine: string) => {
         if (!window.confirm(`Are you sure you want to delete the address: ${addressLine}?`)) return;
         
@@ -108,7 +106,6 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
             setIsSaving(false);
         }
     }
-
 
     if (loading) {
         return <LoadingSpinner />;
@@ -145,8 +142,16 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
             {/* Address List */}
             <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
                 {addresses.length === 0 ? (
-                    <div className='p-4 text-center text-gray-500 border rounded-lg bg-gray-50'>
-                        No saved addresses. Please click "Add New" above.
+                    <div className='p-6 text-center border rounded-lg bg-blue-50'>
+                        <FaExclamationTriangle className="w-8 h-8 mx-auto mb-3 text-blue-600" />
+                        <p className='text-blue-800 font-medium'>No saved addresses found</p>
+                        <p className='text-blue-700 text-sm mt-1 mb-4'>Please add a delivery address to continue</p>
+                        <button
+                            onClick={handleAddAddress}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                            <FaPlus className='mr-2 inline-block' /> Add New Address
+                        </button>
                     </div>
                 ) : (
                     addresses.map(address => (

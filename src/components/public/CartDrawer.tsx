@@ -2,12 +2,13 @@
 'use client';
 
 import React, { useMemo, useState } from 'react'; 
-import { FaTimes, FaShoppingCart, FaTrash, FaPlus, FaMinus, FaLock, FaBox, FaSpinner, FaTag } from 'react-icons/fa';
+import { FaTimes, FaShoppingCart, FaPlus, FaMinus, FaLock, FaBox, FaSpinner, FaTag, FaTrash } from 'react-icons/fa';
 import { useCart } from '@/context/CartContext';
-import LoadingSpinner from '../ui/LoadingSpinner';
-import CheckoutModal from './CheckoutModal'; 
-import Link from 'next/link';
-import { useCategoryService } from '@/services/admin/categoryService';
+import { useAuth } from '@/context/AuthContext';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import LoginModal from './LoginModal';
+import CheckoutModal from './CheckoutModal';
+
 
 interface CartDrawerProps {
     isOpen: boolean;
@@ -15,16 +16,53 @@ interface CartDrawerProps {
 }
 
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
-    const { cart, cartCount, cartLoading, removeItem, updateItemQuantity } = useCart();
-    const { getStorageUrl } = useCategoryService(); 
+    const { cart, cartCount, cartLoading, removeItem, updateItemQuantity, setIsCartDrawerOpen } = useCart();
+    const { isAuthenticated } = useAuth();
     
     const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false); 
+    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-    // Use pre-calculated totals from the Cart object (guaranteed to be numbers or fallback to 0)
-    const totalItemsPrice = cart?.totals?.total_actual_price || 0;
-    const totalDiscount = cart?.totals?.total_discount || 0;
-    const payablePrice = cart?.totals?.payable_price || 0;
-    const shippingPrice = cart?.totals?.shipping_price || 0;
+    // Helper to safely convert price to number
+    const getSafeNumber = (value: number | string | undefined | null): number => {
+        // Coalesce undefined/null/string to 0 and convert to float
+        return parseFloat(String(value || 0));
+    };
+
+    // Calculate totals (Fall back to manual calculation if cart.totals is null, e.g., in guest mode)
+    const { totalItemsPrice, totalDiscount, payablePrice, shippingPrice } = useMemo(() => {
+        if (cart?.totals) {
+            return {
+                totalItemsPrice: getSafeNumber(cart.totals.total_actual_price),
+                totalDiscount: getSafeNumber(cart.totals.total_discount),
+                payablePrice: getSafeNumber(cart.totals.payable_price),
+                shippingPrice: getSafeNumber(cart.totals.shipping_price || 0),
+            };
+        }
+        
+        // --- GUEST CART FALLBACK CALCULATION ---
+        let manualItemsPrice = 0;
+        let manualDiscount = 0;
+        
+        cart?.items.forEach(item => {
+            const basePrice = getSafeNumber(item.variant.price) || 0;
+            const offerPrice = getSafeNumber(item.variant.offer_price) || 0;
+            const priceToUse = offerPrice > 0 && offerPrice < basePrice ? offerPrice : basePrice;
+            
+            manualItemsPrice += basePrice * item.quantity;
+            manualDiscount += (basePrice - priceToUse) * item.quantity;
+        });
+
+        // NOTE: Guest carts don't support cart-level coupons/shipping yet, 
+        // so we assume shipping is free and final discount is item-level only.
+        return {
+            totalItemsPrice: manualItemsPrice, // Base Price total
+            totalDiscount: manualDiscount, // Item-level discount total
+            shippingPrice: 0.00,
+            payablePrice: Math.max(0, manualItemsPrice - manualDiscount),
+        };
+        
+    }, [cart]);
+
 
     const handleUpdateQuantity = (prodVariantId: string, currentQuantity: number, action: 'add' | 'remove') => {
         const newQuantity = action === 'add' ? currentQuantity + 1 : currentQuantity - 1;
@@ -35,21 +73,20 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
     
     const handleCheckout = () => {
         onClose(); 
-        setIsCheckoutModalOpen(true); 
-    }
 
-    // Helper to safely get item price/discount, ensuring it is a number
-    const getSafeNumber = (value: number | undefined): number => {
-        return parseFloat(String(value || 0));
-    };
+        if (!isAuthenticated) {
+            setIsLoginModalOpen(true);
+        } else {
+            setIsCheckoutModalOpen(true);
+        }
+    }
 
 
     return (
         <>
-            {/* Overlay and Drawer structure (unchanged) */}
             {isOpen && (
                 <div 
-                    className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300" 
+                    className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300" 
                     onClick={onClose}
                 />
             )}
@@ -59,7 +96,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                     isOpen ? 'translate-x-0' : 'translate-x-full'
                 }`}
             >
-                {/* Drawer Header (unchanged) */}
+                
                 <div className="p-4 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
                     <h3 className="text-xl font-bold text-slate-800 flex items-center">
                         <FaShoppingCart className="mr-2" style={{ color: 'var(--color-primary-light)' }} />
@@ -69,34 +106,38 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                         <FaTimes className="w-5 h-5" />
                     </button>
                 </div>
-                
-                {cartLoading ? (
+
+                {cartLoading || !cart || cart.items.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center">
-                        <LoadingSpinner />
-                    </div>
-                ) : cart?.items.length === 0 || !cart ? (
-                    /* Empty Cart State (unchanged) */
-                    <div className="flex-1 p-6 text-center flex flex-col items-center justify-center">
-                        <FaBox className="w-12 h-12 mb-4 text-gray-300" />
-                        <p className="text-lg font-medium text-slate-700">Your cart is empty.</p>
-                        <p className="text-sm text-gray-500 mt-1">Start browsing our categories to find great items!</p>
+                        {cartLoading ? <LoadingSpinner /> : (
+                             <div className="p-6 text-center flex flex-col items-center justify-center">
+                                 <FaBox className="w-12 h-12 mb-4 text-gray-300" />
+                                 <p className="text-lg font-medium text-slate-700">Your cart is empty.</p>
+                                 <p className="text-sm text-gray-500 mt-1">Start browsing our categories to find great items!</p>
+                             </div>
+                        )}
                     </div>
                 ) : (
                     <>
-                        {/* Cart Items List */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 border-b border-gray-100">
                             {cart.items.map(item => {
-                                // 💡 FIX: Safely retrieve and convert calculated numbers
-                                const itemTotal = getSafeNumber(item.item_total_price);
-                                const itemDiscount = getSafeNumber(item.item_discount);
-                                const itemBasePrice = getSafeNumber(item.variant.price) * item.quantity;
+                                // 💡 Price Fallback: Use calculated price from backend, or manually calculate for guest mode
+                                const basePrice = getSafeNumber(item.variant.price) || 0;
+                                const offerPrice = getSafeNumber(item.variant.offer_price) || 0;
+                                const priceToUse = offerPrice > 0 && offerPrice < basePrice ? offerPrice : basePrice;
+                                
+                                // Calculate values, prioritizing calculated fields from the API if they exist
+                                const itemTotal = getSafeNumber(item.item_total_price) || (priceToUse * item.quantity);
+                                const itemDiscount = getSafeNumber(item.item_discount) || ((basePrice - priceToUse) * item.quantity);
+                                const itemBasePriceTotal = basePrice * item.quantity;
 
                                 return (
                                 <div key={item.id} className="flex items-start border-b pb-4 last:border-b-0">
                                     <div className="w-20 h-20 flex-shrink-0 mr-4 rounded-lg overflow-hidden border border-gray-200">
+                                        {/* 💡 Use the injected primary_image_url from context */}
                                         {item.primary_image_url ? ( 
                                             <img 
-                                                src={item.primary_image_url} 
+                                                src={item.primary_image_url} // Use the resolved URL
                                                 alt={item.variant.product.prod_name} 
                                                 className="w-full h-full object-cover"
                                             />
@@ -133,17 +174,14 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                             
                                             <div className="text-right">
                                                 <p className="text-sm font-bold" style={{ color: itemDiscount > 0 ? 'var(--color-primary)' : 'inherit' }}>
-                                                    {/* 💡 FIX: Use the safe numeric value */}
                                                     AED {itemTotal.toFixed(2)}
                                                 </p>
-                                                {/* Show original price if discount applied */}
                                                 {itemDiscount > 0 && (
                                                     <p className="text-xs text-gray-500 line-through">
-                                                        AED {itemBasePrice.toFixed(2)}
+                                                        AED {itemBasePriceTotal.toFixed(2)}
                                                     </p>
                                                 )}
                                             </div>
-                                            
                                         </div>
                                     </div>
                                     
@@ -166,13 +204,11 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                     <span className="font-medium">AED {totalItemsPrice.toFixed(2)}</span>
                                 </div>
                                 
-                                {/* Display Discount */}
                                 <div className="flex justify-between text-red-600">
                                     <span>Discount:</span>
                                     <span className="font-medium">- AED {totalDiscount.toFixed(2)}</span>
                                 </div>
                                 
-                                {/* Display Shipping */}
                                 <div className="flex justify-between">
                                     <span>Shipping:</span>
                                     <span className="font-medium">AED {shippingPrice.toFixed(2)}</span>
@@ -187,7 +223,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                             <button
                                 onClick={handleCheckout}
                                 disabled={payablePrice <= 0}
-                                className="w-full mt-4 py-3 text-white font-semibold rounded-lg flex items-center justify-center shadow-lg transition-colors disabled:bg-gray-400"
+                                className="w-full mt-4 z-10 py-3 text-white font-semibold rounded-lg flex items-center justify-center shadow-lg transition-colors disabled:bg-gray-400"
                                 style={{ backgroundColor: 'var(--color-primary-light)' }}
                             >
                                 <FaLock className="mr-2 w-4 h-4" /> Proceed to Checkout
@@ -196,7 +232,13 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                     </>
                 )}
             </div>
-            {/* Checkout Modal Renders Here (unchanged) */}
+            
+            <LoginModal 
+                isOpen={isLoginModalOpen} 
+                onClose={() => setIsLoginModalOpen(false)}
+                onLoginSuccess={() => { setIsLoginModalOpen(false); setIsCheckoutModalOpen(true); }}
+            />
+
             <CheckoutModal 
                 isOpen={isCheckoutModalOpen} 
                 onClose={() => setIsCheckoutModalOpen(false)} 

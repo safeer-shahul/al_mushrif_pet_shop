@@ -1,5 +1,5 @@
-// src/services/public/addressService.ts
-import { publicClient, getCsrfToken, createAuthenticatedClient } from '@/utils/ApiClient';
+// src/services/public/addressService.ts - Updated
+import { getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
 import { useAuth } from '@/context/AuthContext';
 import { useCallback } from 'react';
 import { Address } from '@/types/user';
@@ -10,96 +10,121 @@ const ADDRESS_API_ENDPOINT = '/user/addresses';
  * Custom hook for managing user addresses (CRUD).
  */
 export const useAddressService = () => {
-    const { isAuthenticated, token } = useAuth();
+    const { token } = useAuth();
     
-    // Helper to get the authenticated client (enforces authentication)
-    const getClient = useCallback(() => {
-        if (!isAuthenticated || !token) {
-            throw new Error("Authentication required for address operations.");
+    // Follow the same pattern as in brandService
+    const getClient = useCallback((isFileUpload: boolean = false) => {
+        const config = isFileUpload ? { omitContentType: true } : {};
+        if (token) {
+            return createAuthenticatedClient(token, config); 
         }
-        return publicClient; // Uses the token via the client interceptor
-    }, [isAuthenticated, token]);
-
+        // For addresses, always require authentication
+        throw new Error("Authentication required for address operations.");
+    }, [token]);
 
     /**
      * Fetches all addresses for the authenticated user.
      */
     const fetchUserAddresses = useCallback(async (): Promise<Address[]> => {
-        const api = getClient();
         try {
-            // Hitting the protected API route
+            // Use getClient like brandService does
+            const api = getClient();
+            
+            // Log for debugging
+            console.log("Fetching addresses with token:", token ? "Token present" : "No token");
+            
             const response = await api.get<Address[]>(ADDRESS_API_ENDPOINT);
             
-            // NOTE: Assuming the API returns the array directly or in a standard Axios way
-            return response.data;
+            // Log success for debugging
+            console.log("Addresses fetched successfully:", response.data);
+            
+            return response.data || [];
         } catch (error: any) {
-            console.error('API Error fetching addresses:', error);
-            throw new Error("Failed to load saved addresses.");
+            // Detailed error logging for debugging
+            console.error('Address fetch error:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+            });
+            
+            // Rethrow with user-friendly message
+            if (error.response?.status === 401) {
+                throw new Error("Session expired. Please log in again.");
+            } else if (!token) {
+                throw new Error("Please log in to view addresses.");
+            } else {
+                throw new Error("Could not load addresses. Please try again.");
+            }
         }
-    }, [getClient]);
-
+    }, [token, getClient]);
 
     /**
      * Creates a new address.
      */
     const createAddress = useCallback(async (data: Omit<Address, 'id' | 'user_id'>): Promise<Address> => {
-        const api = getClient();
         try {
+            const api = getClient();
             await getCsrfToken();
+            
+            // Prepare payload
             const payload = {
                 ...data,
-                // Ensure phone_numbers array is sent as a JSON string to Laravel
+                // Ensure phone_numbers array is sent as a JSON string
                 phone_numbers: JSON.stringify(data.phone_numbers) 
             };
+            
+            // Log for debugging
+            console.log("Creating address with payload:", payload);
+            
             const response = await api.post<{ message: string, address: Address }>(ADDRESS_API_ENDPOINT, payload);
+            
             return response.data.address;
-
         } catch (error: any) {
-            const msg = error.response?.data?.message || 'Address creation failed.';
-            throw new Error(msg);
+            console.error('Address creation error:', error);
+            throw new Error(error.response?.data?.message || 'Failed to create address.');
         }
     }, [getClient]);
-    
     
     /**
      * Updates an existing address.
      */
     const updateAddress = useCallback(async (id: string, data: Partial<Omit<Address, 'id' | 'user_id'>>): Promise<Address> => {
-        const api = getClient();
         try {
+            const api = getClient();
             await getCsrfToken();
+            
             const payload = {
                 ...data,
-                // Ensure phone_numbers array is sent as a JSON string
                 phone_numbers: data.phone_numbers ? JSON.stringify(data.phone_numbers) : undefined
             };
-            // Laravel uses PUT/PATCH for updates
+            
+            console.log("Updating address with payload:", payload);
+            
             const response = await api.put<{ message: string, address: Address }>(`${ADDRESS_API_ENDPOINT}/${id}`, payload);
             return response.data.address;
-
         } catch (error: any) {
-            const msg = error.response?.data?.message || 'Address update failed.';
-            throw new Error(msg);
+            console.error('Address update error:', error);
+            throw new Error(error.response?.data?.message || 'Failed to update address.');
         }
     }, [getClient]);
-
     
     /**
      * Deletes an address.
      */
     const deleteAddress = useCallback(async (id: string) => {
-        const api = getClient();
         try {
+            const api = getClient();
             await getCsrfToken();
+            
+            console.log("Deleting address:", id);
+            
             const response = await api.delete<{ message: string }>(`${ADDRESS_API_ENDPOINT}/${id}`);
             return response.data.message;
-
         } catch (error: any) {
-            const msg = error.response?.data?.message || 'Address deletion failed.';
-            throw new Error(msg);
+            console.error('Address deletion error:', error);
+            throw new Error(error.response?.data?.message || 'Failed to delete address.');
         }
     }, [getClient]);
-
 
     return {
         fetchUserAddresses,

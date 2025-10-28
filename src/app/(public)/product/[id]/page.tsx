@@ -1,4 +1,5 @@
-// src/app/(public)/product/[id]/page.tsx
+// src/app/(public)/product/[id]/page.tsx - Fix for finalPrice error
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -56,21 +57,54 @@ const ProductDetailPage: React.FC = () => {
         return product.variants.find(v => v.id === selectedVariantId);
     }, [product?.variants, selectedVariantId]);
     
-    const finalPrice = selectedVariant?.offer_price || selectedVariant?.price || 0;
-    const basePrice = selectedVariant?.price || 0;
+    // FIX: Ensure finalPrice and basePrice are always numbers
+    const finalPrice = useMemo(() => {
+        if (selectedVariant?.offer_price !== null && selectedVariant?.offer_price !== undefined) {
+            return parseFloat(String(selectedVariant.offer_price));
+        }
+        if (selectedVariant?.price !== null && selectedVariant?.price !== undefined) {
+            return parseFloat(String(selectedVariant.price));
+        }
+        if (product?.base_offer_price !== null && product?.base_offer_price !== undefined) {
+            return parseFloat(String(product.base_offer_price));
+        }
+        if (product?.base_price !== null && product?.base_price !== undefined) {
+            return parseFloat(String(product.base_price));
+        }
+        return 0;
+    }, [selectedVariant, product]);
+    
+    const basePrice = useMemo(() => {
+        if (selectedVariant?.price !== null && selectedVariant?.price !== undefined) {
+            return parseFloat(String(selectedVariant.price));
+        }
+        if (product?.base_price !== null && product?.base_price !== undefined) {
+            return parseFloat(String(product.base_price));
+        }
+        return 0;
+    }, [selectedVariant, product]);
     
     // 3. Identify Display Image
     const displayImage: ProductImage | undefined = useMemo(() => {
-        if (!product || !selectedVariant) return undefined;
+        if (!product) return undefined;
         
-        // Use primary image from selected variant first, then any image, then base product image
-        return selectedVariant.images?.find(img => img.is_primary) || 
-               selectedVariant.images?.[0] || 
-               product.images?.find(img => img.is_primary) ||
-               product.images?.[0];
+        // Use primary image from selected variant first, if available
+        if (selectedVariant?.images?.length) {
+            const primaryImage = selectedVariant.images.find(img => img.is_primary);
+            if (primaryImage) return primaryImage;
+            return selectedVariant.images[0];
+        }
+        
+        // Fall back to base product images
+        if (product.images?.length) {
+            const primaryImage = product.images.find(img => img.is_primary);
+            if (primaryImage) return primaryImage;
+            return product.images[0];
+        }
+        
+        return undefined;
     }, [product, selectedVariant]);
     
-
     // 4. Add to Cart Handler
     const handleAddToCart = async () => {
         if (!selectedVariantId) {
@@ -88,10 +122,18 @@ const ProductDetailPage: React.FC = () => {
         }
     };
     
+    // Calculate discount percentage
+    const discountPercentage = useMemo(() => {
+        if (basePrice > 0 && finalPrice < basePrice) {
+            return Math.round(((basePrice - finalPrice) / basePrice) * 100);
+        }
+        return null;
+    }, [basePrice, finalPrice]);
+    
     if (loading) return <LoadingSpinner />;
     if (apiError || !product) return <div className="p-8 text-center text-red-600">{apiError || "Product not found."}</div>;
 
-    const hasVariants = product.has_variants || (product.variants?.length ?? 0) > 1;
+    const hasVariants = product.has_variants === true || (product.variants?.length ?? 0) > 1;
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -109,11 +151,30 @@ const ProductDetailPage: React.FC = () => {
                         ) : (
                             <FaBox className="w-12 h-12 text-gray-300" />
                         )}
-                         {selectedVariant?.offer_price && (
-                            <span className="absolute top-4 left-4 bg-red-600 text-white text-lg font-bold px-3 py-1 rounded-lg">SALE</span>
+                        {discountPercentage && (
+                            <span className="absolute top-4 left-4 bg-red-600 text-white text-lg font-bold px-3 py-1 rounded-lg">
+                                {discountPercentage}% OFF
+                            </span>
                         )}
                     </div>
-                    {/* Thumbnail gallery goes here */}
+                    
+                    {/* Thumbnail gallery - small image previews */}
+                    {((selectedVariant?.images?.length ?? 0) > 1 || (product.images?.length ?? 0) > 1) && (
+                        <div className="flex overflow-x-auto space-x-2 p-2">
+                            {(selectedVariant?.images?.length ? selectedVariant.images : product.images || []).map((img, idx) => (
+                                <div 
+                                    key={img.id || idx} 
+                                    className="w-20 h-20 flex-shrink-0 border border-gray-200 rounded cursor-pointer overflow-hidden"
+                                >
+                                    <img 
+                                        src={getStorageUrl(img.image_url) || ''} 
+                                        alt={`${product.prod_name} - view ${idx+1}`}
+                                        className="w-full h-full object-cover" 
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Product Details */}
@@ -128,19 +189,21 @@ const ProductDetailPage: React.FC = () => {
                         <p className="text-4xl font-extrabold" style={{ color: 'var(--color-primary)' }}>
                             AED {finalPrice.toFixed(2)}
                         </p>
-                        {selectedVariant?.offer_price && (
+                        {finalPrice < basePrice && (
                             <p className="text-xl text-gray-500 line-through">
                                 AED {basePrice.toFixed(2)}
                             </p>
                         )}
                     </div>
 
-                    {/* Variant Selector (if true variants exist) */}
-                    {hasVariants && (
+                    {/* Variant Selector */}
+                    {hasVariants && product.variants && product.variants.length > 0 && (
                         <div className="space-y-2">
-                            <h3 className="font-semibold text-slate-700 flex items-center"><FaTags className='mr-2' /> Options</h3>
+                            <h3 className="font-semibold text-slate-700 flex items-center">
+                                <FaTags className='mr-2' /> Options
+                            </h3>
                             <div className="flex flex-wrap gap-2">
-                                {product.variants?.map(variant => (
+                                {product.variants.map(variant => (
                                     <button 
                                         key={variant.id}
                                         onClick={() => setSelectedVariantId(variant.id)}
@@ -150,7 +213,7 @@ const ProductDetailPage: React.FC = () => {
                                                 : 'bg-white text-slate-700 hover:border-blue-300'
                                         }`}
                                     >
-                                        {variant.variant_name || 'Default Option'}
+                                        {variant.variant_name || `Option ${variant.price}`}
                                     </button>
                                 ))}
                             </div>
@@ -159,13 +222,27 @@ const ProductDetailPage: React.FC = () => {
                     
                     {/* Add to Cart & Quantity */}
                     <div className="flex space-x-4 pt-4 border-t border-gray-100">
-                        <input
-                            type="number"
-                            value={quantity}
-                            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                            min="1"
-                            className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-lg text-center"
-                        />
+                        <div className="flex border border-gray-300 rounded-lg">
+                            <button 
+                                className="px-3 py-2 text-gray-700 hover:bg-gray-100"
+                                onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
+                            >
+                                -
+                            </button>
+                            <input
+                                type="number"
+                                value={quantity}
+                                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                min="1"
+                                className="w-16 px-3 py-2 border-x border-gray-300 text-center"
+                            />
+                            <button 
+                                className="px-3 py-2 text-gray-700 hover:bg-gray-100"
+                                onClick={() => setQuantity(prev => prev + 1)}
+                            >
+                                +
+                            </button>
+                        </div>
                         <button
                             onClick={handleAddToCart}
                             disabled={isAddingToCart || cartLoading || !selectedVariantId}
@@ -183,8 +260,13 @@ const ProductDetailPage: React.FC = () => {
                     
                     {/* Policies */}
                     <div className="pt-4 space-y-2 text-sm text-gray-600">
-                         <p className="flex items-center">
-                            <FaCheckCircle className='mr-2 text-green-500' /> In Stock (Base Qty: {product.base_quantity || 'N/A'})
+                        <p className="flex items-center">
+                            <FaCheckCircle className='mr-2 text-green-500' /> 
+                            {selectedVariant?.quantity !== undefined && selectedVariant?.quantity !== null ? 
+                                `In Stock (${selectedVariant.quantity} available)` : 
+                                `In Stock ${product.base_quantity !== null && product.base_quantity !== undefined ? 
+                                    `(Base Qty: ${product.base_quantity})` : ''}`
+                            }
                         </p>
                         <p className="flex items-center">
                             <FaRegClock className='mr-2 text-blue-500' /> Delivery in 2-3 Days across UAE.

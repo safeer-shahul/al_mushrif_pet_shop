@@ -1,8 +1,7 @@
-// src/services/public/checkoutService.ts
-import { publicClient, getCsrfToken } from '@/utils/ApiClient';
+// src/services/public/checkoutService.ts - UPDATED
+import { createAuthenticatedClient, getCsrfToken } from '@/utils/ApiClient';
 import { useAuth } from '@/context/AuthContext';
 import { useCallback } from 'react';
-import { Address } from '@/types/user'; // Assuming types/user.ts defines Address
 
 // Simplified Order Response Type
 interface OrderResponse {
@@ -10,7 +9,7 @@ interface OrderResponse {
     order: {
         id: string;
         payable_price: number;
-        // Include other order fields as needed (Laravel's response should contain these)
+        // Include other order fields as needed
     };
 }
 
@@ -20,35 +19,60 @@ interface OrderResponse {
 export const useCheckoutService = () => {
     const { isAuthenticated, token } = useAuth();
     
-    // Helper to get the client (enforces authentication for order placement)
-    const getClient = useCallback(() => {
-        if (!isAuthenticated || !token) {
-            throw new Error("Authentication required for order placement.");
-        }
-        return publicClient; // Public client handles the bearer token via interceptor
-    }, [isAuthenticated, token]);
-
-
     /**
      * Places the final COD order.
      */
     const placeOrder = useCallback(async (addressId: string): Promise<OrderResponse> => {
-        const api = getClient();
-        try {
-            await getCsrfToken();
+    if (!isAuthenticated || !token) {
+        throw new Error("Authentication required for order placement.");
+    }
+    
+    try {
+        // Get a CSRF token first
+        await getCsrfToken();
+        
+        // Create an authenticated client with the token
+        const api = createAuthenticatedClient(token);
+        
+        // Add some debug logging
+        console.log('Placing order with address ID:', addressId);
+        
+        const response = await api.post<OrderResponse>('/user/orders', {
+            address_id: addressId,
+            payment_mode: 'COD'
+        });
+
+        return response.data;
+    } catch (error: any) {
+        // Enhanced error handling for 422 errors
+        if (error.response?.status === 422) {
+            // Laravel validation errors come in error.response.data.errors
+            const validationErrors = error.response.data.errors || {};
+            console.error('Validation errors:', validationErrors);
             
-            const response = await api.post<OrderResponse>('/user/orders', {
-                address_id: addressId,
-                payment_mode: 'COD', // Always COD for MVP
-            });
-
-            return response.data;
-
-        } catch (error: any) {
-            const msg = error.response?.data?.message || 'Order failed. Check cart and authentication.';
-            throw new Error(msg);
+            // Check for specific validation errors
+            if (validationErrors.address_id) {
+                throw new Error(`Address error: ${validationErrors.address_id[0]}`);
+            }
+            
+            if (validationErrors.cart) {
+                throw new Error(`Cart error: ${validationErrors.cart[0]}`);
+            }
+            
+            // Generic validation error message
+            const errorMessages = Object.entries(validationErrors)
+                .map(([field, msgs]) => `${field}: ${(msgs as string[])[0]}`)
+                .join(', ');
+                
+            throw new Error(`Validation failed: ${errorMessages || 'Unknown validation error'}`);
         }
-    }, [getClient]);
+        
+        // Regular error handling for other errors
+        console.error('Order placement error:', error.response?.data || error);
+        const msg = error.response?.data?.message || 'Order failed. Please try again.';
+        throw new Error(msg);
+    }
+}, [isAuthenticated, token]);
 
     return {
         placeOrder,

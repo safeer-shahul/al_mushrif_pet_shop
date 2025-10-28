@@ -27,6 +27,9 @@ export interface RootCategory extends BaseCategory {
     // The immediate children of a RootCategory are SubCategories (Level 1)
     subCategories?: SubCategory[]; 
     
+    // 💡 FIX 1: Explicitly allow the snake_case name returned by the API
+    sub_categories?: SubCategory[]; 
+    
     // Support both naming conventions since API returns snake_case on some calls
     root_categories?: RootCategory[]; 
 }
