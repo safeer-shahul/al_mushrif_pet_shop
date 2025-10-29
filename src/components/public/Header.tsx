@@ -20,13 +20,10 @@ const STATIC_MENU_ITEMS = [
     { name: 'SERVICES', href: '/services' },
 ];
 
-/**
- * Public Header Component: Includes Marquee, Logo, Search Bar, Navigation, and Cart/Auth controls.
- */
 const Header: React.FC = () => {
     const router = useRouter();
     const { fetchAllRootCategories } = useCategoryService();
-    const { isAuthenticated, user, logout, isLoading: isAuthLoading } = useAuth();
+    const { isAuthenticated, user, logout } = useAuth(); 
     const { cartCount, isCartDrawerOpen, setIsCartDrawerOpen } = useCart();
 
     const [rootCategories, setRootCategories] = useState<RootCategory[]>([]);
@@ -38,6 +35,10 @@ const Header: React.FC = () => {
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
     const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const fetchCategories = useCallback(async () => {
         setNavLoading(true);
@@ -55,23 +56,17 @@ const Header: React.FC = () => {
     useEffect(() => {
         fetchCategories();
     }, [fetchCategories]);
-
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
     
     const handleNavLinkClick = () => {
         if (isMenuOpen) {
             setIsMenuOpen(false);
         }
         setActiveRootCategory(null);
-        setIsUserDropdownOpen(false); // Close dropdown when navigating
+        setIsUserDropdownOpen(false);
     };
     
-    // Handles click on the main User icon
     const handleLoginClick = () => {
-        if (!isMounted || isAuthLoading) return;
-        
+        if (!isMounted) return;
         if (isAuthenticated) {
             setIsUserDropdownOpen(prev => !prev);
             return; 
@@ -79,11 +74,11 @@ const Header: React.FC = () => {
         setIsLoginModalToOpen(true);
     }
     
-    // Handles the logout action
     const handleLogout = () => {
-        logout(); // Calls the logout function from AuthContext
+        logout(); 
         setIsUserDropdownOpen(false);
-        router.push('/'); // Redirect to homepage
+        setIsMenuOpen(false);
+        router.push('/'); 
         toast.success("Successfully logged out.");
     };
     
@@ -96,157 +91,192 @@ const Header: React.FC = () => {
         }
     };
 
-    // 2. Improved Mega Menu Renderer
     const renderMegaMenu = (rootCat: RootCategory) => {
         const l1SubCats: SubCategory[] = (rootCat.subCategories || rootCat.sub_categories) || [];
         
         if (l1SubCats.length === 0) {
             return (
-                <div className="absolute top-full left-0 bg-white shadow-lg rounded-b-md border border-gray-200 py-3 px-4 min-w-[220px] z-50">
-                    <Link 
-                        href={`/products?category_id=${rootCat.id}`}
-                        onClick={handleNavLinkClick}
-                        className="text-base text-gray-700 hover:text-blue-600 font-medium block py-1"
-                    >
-                        View All {rootCat.cat_name} Products
-                    </Link>
+                <div className="fixed top-[168px] left-0 right-0 bg-white shadow-2xl border-t-2 border-gray-100 z-50">
+                    <div className="container mx-auto px-8 py-6">
+                        <Link 
+                            href={`/products?category_id=${rootCat.id}`}
+                            onClick={handleNavLinkClick}
+                            className="text-sm text-gray-700 hover:text-[var(--color-primary,#FF6B35)] font-medium block py-2"
+                        >
+                            View All {rootCat.cat_name} Products
+                        </Link>
+                    </div>
                 </div>
             );
         }
         
-        const columnCount = Math.min(l1SubCats.length, 5);
-        
         return (
-            <div className="absolute top-full left-0 bg-white shadow-lg rounded-b-md border border-gray-200 py-6 z-50 w-[980px] mx-auto">
-                <div className="flex flex-wrap px-8">
-                    {l1SubCats.map(l1Cat => (
-                        <div 
-                            key={l1Cat.id} 
-                            className={`w-1/${columnCount} min-w-[160px] pr-10 mb-4`}
-                        >
-                            <h4 className="text-base font-bold mb-3 text-slate-800">
-                                {l1Cat.sub_cat_name}
-                            </h4>
-                            
-                            <ul className="space-y-2">
-                                {/* Check for l2Cat children */}
-                                {('children' in l1Cat && Array.isArray(l1Cat.children)) ? (
-                                    l1Cat.children.map(l2Cat => (
-                                        <li key={l2Cat.id}>
-                                            <Link 
-                                                href={`/products?category_id=${l2Cat.id}`} 
-                                                onClick={handleNavLinkClick}
-                                                className="text-sm text-gray-600 hover:text-blue-600 transition-colors block py-1"
-                                            >
-                                                {l2Cat.sub_cat_name}
-                                            </Link>
-                                        </li>
-                                    ))
-                                ) : null}
+            <div className="fixed top-[158px] left-0 right-0 bg-white mr-8 ml-8 border-r border-b border-l border-gray-300 z-50">
+                <div className="container mx-auto px-8 py-8">
+                    <div className="grid grid-cols-5 gap-8">
+                        {l1SubCats.map(l1Cat => (
+                            <div key={l1Cat.id} className="space-y-4">
+                                <Link
+                                    href={`/products?category_id=${l1Cat.id}`}
+                                    onClick={handleNavLinkClick}
+                                    className="text-sm font-bold text-gray-900 hover:text-[var(--color-primary,#FF6B35)] block uppercase tracking-wide"
+                                >
+                                    {l1Cat.sub_cat_name}
+                                </Link>
                                 
-                                <li className='mt-2 pt-2 border-t border-gray-100'>
-                                    <Link 
-                                        href={`/products?category_id=${l1Cat.id}`}
-                                        onClick={handleNavLinkClick}
-                                        className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors block py-1"
-                                    >
-                                        View All {l1Cat.sub_cat_name}
-                                    </Link>
-                                </li>
-                            </ul>
-                        </div>
-                    ))}
+                                <ul className="space-y-2.5">
+                                    {('children' in l1Cat && Array.isArray(l1Cat.children)) ? (
+                                        l1Cat.children.map(l2Cat => (
+                                            <li key={l2Cat.id}>
+                                                <Link 
+                                                    href={`/products?category_id=${l2Cat.id}`} 
+                                                    onClick={handleNavLinkClick}
+                                                    className="text-sm text-gray-600 hover:text-[var(--color-primary,#FF6B35)] transition-colors block"
+                                                >
+                                                    {l2Cat.sub_cat_name}
+                                                </Link>
+                                            </li>
+                                        ))
+                                    ) : null}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );
     };
 
-    // Mobile menu renderer (COMPLETE)
     const renderMobileMenu = () => {
         if (!isMenuOpen) return null;
         
         return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 lg:hidden">
+            <div className="fixed inset-0 bg-black/50 z-50 lg:hidden">
                 <div className="fixed top-0 left-0 h-full w-[85%] max-w-sm bg-white overflow-y-auto">
-                    <div className="flex justify-between items-center p-4 border-b">
+                    {/* Mobile Menu Header */}
+                    <div className="flex justify-between items-center p-4 border-b border-gray-200">
                         <Link href="/" className="flex items-center space-x-2" onClick={() => setIsMenuOpen(false)}>
                             <FaPaw className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                             <span className="text-lg font-bold text-slate-800">Al Mushrif Pet Shop</span>
                         </Link>
-                        <button onClick={() => setIsMenuOpen(false)} className="p-2 text-slate-700">
+                        <button onClick={() => setIsMenuOpen(false)} className="p-2 text-slate-700 hover:bg-gray-100 rounded">
                             <FaTimes className="w-5 h-5" />
                         </button>
                     </div>
                     
-                    {/* Mobile search */}
-                    <div className="p-4 border-b">
+                    {/* Mobile Search */}
+                    <div className="p-4 border-b border-gray-200">
                         <form onSubmit={handleSearchSubmit} className="flex">
                             <input
                                 type="text"
                                 placeholder="Search products..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="flex-1 py-2 px-3 text-sm border border-gray-300 rounded-l-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="flex-1 py-2 px-3 text-sm border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary,#FF6B35)] bg-gray-50"
                             />
-                            <button type="submit" className="bg-blue-600 text-white px-3 rounded-r-md">
+                            <button type="submit" className="bg-[var(--color-primary,#FF6B35)] text-white px-4 rounded-r-md hover:bg-[var(--color-primary-dark,#E55A2B)]">
                                 <FaSearch className="w-4 h-4" />
                             </button>
                         </form>
                     </div>
                     
-                    {/* Mobile account links (updated) */}
-                    <div className="p-4 border-b space-y-2">
+                    {/* Mobile User Section */}
+                    <div className="p-4 border-b border-gray-200">
                         {isAuthenticated ? (
-                            <>
-                                <Link href="/user/profile" onClick={handleNavLinkClick} className="flex items-center space-x-2 text-sm text-slate-700 hover:text-blue-600">
+                            <div className="space-y-3">
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 rounded-full bg-[var(--color-primary,#FF6B35)] text-white flex items-center justify-center font-semibold">
+                                        {user?.first_name?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-semibold text-gray-900">
+                                            {user?.first_name || user?.username || 'User'}
+                                        </p>
+                                        <p className="text-xs text-gray-500">{user?.email}</p>
+                                    </div>
+                                </div>
+                                <Link 
+                                    href="/user/profile" 
+                                    onClick={handleNavLinkClick} 
+                                    className="flex items-center space-x-2 text-sm text-gray-700 hover:text-[var(--color-primary,#FF6B35)] py-2"
+                                >
                                     <FaUserCircle className="w-4 h-4" />
-                                    <span>Hi, {user?.first_name || user?.username || 'User'} (Profile)</span>
+                                    <span>My Profile</span>
                                 </Link>
-                                <button onClick={handleLogout} className="flex items-center space-x-2 text-sm text-red-600 hover:text-red-800 w-full text-left">
+                                <Link 
+                                    href="/user/wishlist" 
+                                    onClick={handleNavLinkClick} 
+                                    className="flex items-center justify-between py-2 text-sm text-gray-700 hover:text-[var(--color-primary,#FF6B35)]"
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <FaHeart className="w-4 h-4" />
+                                        <span>My Wishlist</span>
+                                    </div>
+                                </Link>
+                                <button 
+                                    onClick={handleLogout} 
+                                    className="flex items-center space-x-2 text-sm text-red-600 hover:text-red-700 w-full py-2"
+                                >
                                     <FaSignOutAlt className="w-4 h-4" />
                                     <span>Logout</span>
                                 </button>
-                            </>
+                            </div>
                         ) : (
-                            <button 
-                                onClick={() => { handleLoginClick(); setIsMenuOpen(false); }}
-                                className="flex items-center space-x-2 w-full text-left text-slate-700 hover:text-blue-600"
-                            >
-                                <FaUser className="w-4 h-4" />
-                                <span className="text-sm">Login / Register</span>
-                            </button>
+                            <>
+                                <button 
+                                    onClick={() => { setIsLoginModalToOpen(true); setIsMenuOpen(false); }}
+                                    className="w-full py-2.5 px-4 rounded-md border-2 border-[var(--color-primary,#FF6B35)] text-[var(--color-primary,#FF6B35)] font-semibold flex items-center justify-center hover:bg-[var(--color-primary,#FF6B35)] hover:text-white transition-colors mb-3"
+                                >
+                                    <FaUser className="w-4 h-4 mr-2" />
+                                    Login / Register
+                                </button>
+                                <Link 
+                                    href="/user/wishlist" 
+                                    onClick={handleNavLinkClick} 
+                                    className="flex items-center justify-between py-2 text-sm text-gray-700 hover:text-[var(--color-primary,#FF6B35)]"
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <FaHeart className="w-4 h-4" />
+                                        <span>My Wishlist</span>
+                                    </div>
+                                </Link>
+                            </>
                         )}
-                        <Link href={isAuthenticated ? "/user/wishlist" : "/login"} onClick={handleNavLinkClick} className="flex items-center space-x-2 text-sm text-slate-700 hover:text-blue-600">
-                            <FaHeart className="w-4 h-4" />
-                            <span>My Wishlist</span>
-                        </Link>
                     </div>
                     
-                    {/* Categories and Static Links */}
+                    {/* Mobile Categories */}
                     <div className="py-2">
-                        {rootCategories.map(rootCat => (
-                            <div key={rootCat.id} className="border-b">
-                                <Link 
-                                    href={`/products?category_id=${rootCat.id}`} 
-                                    onClick={handleNavLinkClick}
-                                    className="block px-4 py-3 text-sm font-medium text-slate-800"
-                                >
-                                    {rootCat.cat_name}
-                                </Link>
+                        {navLoading ? (
+                            <div className="flex items-center justify-center py-4">
+                                <FaSpinner className="animate-spin text-[var(--color-primary,#FF6B35)]" />
                             </div>
-                        ))}
-                        
-                        {STATIC_MENU_ITEMS.map(item => (
-                            <div key={item.name} className="border-b">
-                                <Link 
-                                    href={item.href} 
-                                    onClick={handleNavLinkClick}
-                                    className="block px-4 py-3 text-sm font-medium text-slate-800"
-                                >
-                                    {item.name}
-                                </Link>
-                            </div>
-                        ))}
+                        ) : (
+                            <>
+                                {rootCategories.map(rootCat => (
+                                    <div key={rootCat.id} className="border-b border-gray-100">
+                                        <Link 
+                                            href={`/products?category_id=${rootCat.id}`} 
+                                            onClick={handleNavLinkClick}
+                                            className="block px-4 py-3 text-sm font-medium text-slate-800 hover:text-[var(--color-primary,#FF6B35)] hover:bg-gray-50"
+                                        >
+                                            {rootCat.cat_name}
+                                        </Link>
+                                    </div>
+                                ))}
+                                
+                                {STATIC_MENU_ITEMS.map(item => (
+                                    <div key={item.name} className="border-b border-gray-100">
+                                        <Link 
+                                            href={item.href} 
+                                            onClick={handleNavLinkClick}
+                                            className="block px-4 py-3 text-sm font-medium text-slate-800 hover:text-[var(--color-primary,#FF6B35)] hover:bg-gray-50"
+                                        >
+                                            {item.name}
+                                        </Link>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -254,143 +284,150 @@ const Header: React.FC = () => {
     };
 
     return (
-        <header className="sticky top-0 z-50">
+        <header className="sticky top-0 z-50 bg-white shadow-sm">
             {/* Marquee Bar */}
             <MarqueeBar />
 
-            {/* --- TOP BAR: Logo, Search, Icons --- */}
-            <div className="bg-white shadow-sm border-b border-gray-100 h-16 px-4 sm:px-6 flex items-center justify-between">
-                
-                {/* 1. Logo & Mobile Menu Toggle */}
-                <div className="flex items-center space-x-3 flex-shrink-0">
-                    <button 
-                        className="lg:hidden p-2 text-slate-700 hover:bg-gray-100 rounded"
-                        onClick={() => setIsMenuOpen(true)}
-                    >
-                        <FaBars className="w-5 h-5" />
-                    </button>
-                    <Link href="/" className="flex items-center space-x-2">
-                        <FaPaw className="w-7 h-7" style={{ color: 'var(--color-primary)' }} />
-                        <span className="text-lg font-bold text-slate-800 hidden sm:block">
-                            Al Mushrif Pet Shop
-                        </span>
-                    </Link>
-                </div>
-
-                {/* 2. Search Bar (Reduced height) */}
-                <form onSubmit={handleSearchSubmit} className="hidden lg:flex flex-1 mx-6 max-w-xl">
-                    <div className="relative w-full">
-                        <input
-                            type="text"
-                            placeholder="What do you think your pet needs?"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onFocus={() => setIsSearchFocused(true)}
-                            onBlur={() => setIsSearchFocused(false)}
-                            className={`w-full py-2 pl-4 pr-10 text-sm rounded-md border ${
-                                isSearchFocused ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-300'
-                            } bg-gray-50 focus:outline-none transition-all`}
-                        />
-                        <button 
-                            type="submit" 
-                            className="absolute right-0 top-0 h-full w-10 text-gray-500 hover:text-blue-600 transition-colors"
-                        >
-                            <FaSearch className="w-4 h-4 mx-auto" />
-                        </button>
-                    </div>
-                </form>
-
-                {/* 3. Icons (Cart, Wishlist, & Auth) - Reduced size */}
-                <div className="flex items-center space-x-3 flex-shrink-0">
+            {/* Main Header Bar - With primary color background */}
+            <div className="shadow-sm" style={{ backgroundColor: 'var(--color-primary, #FF6B35)' }}>
+                <div className="container mx-auto px-4 lg:px-8 h-16 flex items-center justify-between gap-4">
                     
-                    {/* Wishlist Icon */}
-                    <Link href={isAuthenticated ? "/user/wishlist" : "/login"} passHref>
-                        <button
-                            className="p-2 text-slate-700 hover:bg-gray-100 rounded-full transition-colors relative"
-                            title="My Wishlist"
-                            onClick={() => handleNavLinkClick()}
+                    {/* Logo & Mobile Menu Toggle */}
+                    <div className="flex items-center space-x-3 flex-shrink-0">
+                        <button 
+                            className="lg:hidden p-2 text-white hover:bg-white/10 rounded transition-colors"
+                            onClick={() => setIsMenuOpen(true)}
                         >
-                            <FaHeart className="w-4 h-4" />
+                            <FaBars className="w-5 h-5" />
                         </button>
-                    </Link>
+                        <Link href="/" className="flex items-center space-x-2">
+                            <FaPaw className="w-7 h-7 text-white" />
+                            <span className="text-lg font-bold text-white hidden sm:block">
+                                Al Mushrif Pet Shop
+                            </span>
+                        </Link>
+                    </div>
 
-                    {/* User/Auth Dropdown */}
-                    <div className="relative">
-                        {(!isMounted || isAuthLoading) ? (
-                            // Render a stable placeholder button during SSR/initial hydration
+                    {/* Search Bar - Full width on desktop */}
+                    <form onSubmit={handleSearchSubmit} className="hidden lg:flex flex-1 max-w-2xl">
+                        <div className="relative w-full">
+                            <input
+                                type="text"
+                                placeholder="What do you think your pet needs?"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onFocus={() => setIsSearchFocused(true)}
+                                onBlur={() => setIsSearchFocused(false)}
+                                className="w-full py-2.5 pl-4 pr-12 text-sm rounded-md border-2 border-transparent focus:border-white bg-white/95 focus:bg-white focus:outline-none transition-all placeholder:text-gray-500"
+                            />
                             <button 
-                                className="p-2 text-slate-700 hover:bg-gray-100 rounded-full transition-colors relative"
-                                title="Loading..."
-                                disabled
+                                type="submit" 
+                                className="absolute right-0 top-0 h-full w-12 text-gray-600 hover:text-[var(--color-primary,#FF6B35)] transition-colors flex items-center justify-center"
                             >
-                                <FaUser className="w-4 h-4" />
+                                <FaSearch className="w-4 h-4" />
                             </button>
-                        ) : (
-                            <>
-                                {/* The dynamic button renders ONLY on the client after mounting */}
+                        </div>
+                    </form>
+
+                    {/* Icons (Wishlist, User, Cart) */}
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                        
+                        {/* Wishlist Icon */}
+                        {/* 💡 FIX START: Change Link to button and handle navigation/modal click */}
+                        <button
+                            onClick={() => {
+                                handleNavLinkClick(); // Close mobile menu if open
+                                if (isAuthenticated) {
+                                    router.push("/user/wishlist");
+                                } else {
+                                    setIsLoginModalToOpen(true);
+                                }
+                            }}
+                            className="p-2 text-white hover:bg-white/10 rounded-full transition-colors relative hidden sm:flex items-center justify-center"
+                            title="My Wishlist"
+                        >
+                            <FaHeart className="w-5 h-5" />
+                        </button>
+                        {/* 💡 FIX END */}
+
+                        {/* User/Auth Dropdown */}
+                        <div className="relative hidden sm:block">
+                            {(!isMounted || (typeof window !== 'undefined' && window.localStorage.getItem('authToken') === null && !isAuthenticated)) ? (
                                 <button 
                                     onClick={handleLoginClick}
-                                    className="p-2 text-slate-700 hover:bg-gray-100 rounded-full transition-colors relative"
+                                    className="p-2 text-white hover:bg-white/10 rounded-full transition-colors relative flex items-center justify-center"
                                     title={isAuthenticated ? `Welcome, ${user?.first_name || user?.username}` : 'Login / Register'}
                                 >
-                                    <FaUser className="w-4 h-4" />
+                                    <FaUser className="w-5 h-5" />
                                 </button>
-                                
-                                {/* Dropdown Content (Desktop) */}
-                                {isAuthenticated && isUserDropdownOpen && (
-                                    <div 
-                                        onMouseLeave={() => setIsUserDropdownOpen(false)}
-                                        className="absolute right-0 mt-3 w-48 bg-white rounded-lg shadow-xl py-1 z-20 border border-gray-100"
+                            ) : (
+                                <>
+                                    <button 
+                                        onClick={handleLoginClick}
+                                        className="p-2 text-white hover:bg-white/10 rounded-full transition-colors relative flex items-center justify-center"
+                                        title={isAuthenticated ? `Welcome, ${user?.first_name || user?.username}` : 'Login / Register'}
                                     >
-                                        <div className="px-4 py-2 text-xs text-gray-500 border-b border-gray-100 truncate">
-                                            {user?.email || user?.username}
-                                        </div>
-                                        <Link href="/user/profile" passHref>
-                                            <div
-                                                onClick={() => setIsUserDropdownOpen(false)}
-                                                className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-gray-100 cursor-pointer"
-                                            >
-                                                <FaUserCircle className="mr-2" /> My Profile
-                                            </div>
-                                        </Link>
-                                        <div className="border-t border-gray-100 my-1" />
-                                        <button
-                                            onClick={handleLogout}
-                                            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50/50 hover:text-red-700 text-left"
+                                        <FaUser className="w-5 h-5" />
+                                    </button>
+                                    
+                                    {isAuthenticated && isUserDropdownOpen && (
+                                        <div 
+                                            onMouseLeave={() => setIsUserDropdownOpen(false)}
+                                            className="absolute right-0 mt-3 w-56 bg-white rounded-lg shadow-xl py-2 z-20 border border-gray-100"
                                         >
-                                            <FaSignOutAlt className="mr-2" /> Logout
-                                        </button>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                                            <div className="px-4 py-3 border-b border-gray-100">
+                                                <p className="text-sm font-semibold text-gray-900 truncate">
+                                                    {user?.first_name || user?.username}
+                                                </p>
+                                                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                                            </div>
+                                            <Link href="/user/profile" passHref>
+                                                <div
+                                                    onClick={() => setIsUserDropdownOpen(false)}
+                                                    className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-gray-50 cursor-pointer"
+                                                >
+                                                    <FaUserCircle className="mr-3" /> My Profile
+                                                </div>
+                                            </Link>
+                                            <div className="border-t border-gray-100 my-1" />
+                                            <button
+                                                onClick={handleLogout}
+                                                className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 text-left"
+                                            >
+                                                <FaSignOutAlt className="mr-3" /> Logout
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                        
+                        {/* Cart Icon */}
+                        <button 
+                            onClick={() => setIsCartDrawerOpen(true)}
+                            className="p-2 text-white hover:bg-white/10 rounded-full transition-colors relative flex items-center justify-center"
+                            title="Shopping Cart"
+                        >
+                            <FaShoppingCart className="w-5 h-5" />
+                            {isMounted && cartCount > 0 && (
+                                <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-[var(--color-primary,#FF6B35)] bg-white rounded-full">
+                                    {cartCount > 99 ? '99+' : cartCount}
+                                </span>
+                            )}
+                        </button>
                     </div>
-                    
-                    {/* Cart Icon */}
-                    <button 
-                        onClick={() => setIsCartDrawerOpen(true)}
-                        className="p-2 text-slate-700 hover:bg-gray-100 rounded-full transition-colors relative"
-                        title="Shopping Cart"
-                    >
-                        <FaShoppingCart className="w-4 h-4" />
-                        {isMounted && cartCount > 0 && (
-                            <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-600 rounded-full">
-                                {cartCount > 99 ? '99+' : cartCount}
-                            </span>
-                        )}
-                    </button>
                 </div>
             </div>
             
-            {/* --- IMPROVED NAVIGATION BAR (Desktop) --- */}
-            <nav className="hidden lg:block w-full bg-white border-b border-gray-100 shadow-sm">
-                <div className="container mx-auto px-4">
+            {/* Desktop Navigation */}
+            <nav className="hidden lg:block bg-white border border-gray-200">
+                <div className="container mx-auto px-8">
                     {navLoading ? (
-                        <div className="py-3 flex items-center justify-center w-full">
-                            <FaSpinner className="animate-spin text-blue-500" />
+                        <div className="py-3 flex items-center justify-center">
+                            <FaSpinner className="animate-spin text-[var(--color-primary,#FF6B35)]" />
                         </div>
                     ) : (
-                        <ul className="flex">
+                        <ul className="flex justify-start space-x-1">
                             {rootCategories.map(rootCat => (
                                 <li 
                                     key={rootCat.id} 
@@ -400,24 +437,24 @@ const Header: React.FC = () => {
                                 >
                                     <Link 
                                         href={`/products?category_id=${rootCat.id}`}
-                                        className={`text-sm font-bold uppercase py-3 px-4 block transition-colors text-slate-700 hover:text-blue-600 ${
-                                            activeRootCategory?.id === rootCat.id ? 'text-blue-600' : ''
+                                        className={`text-sm font-bold uppercase py-4 px-5 block transition-colors ${
+                                            activeRootCategory?.id === rootCat.id 
+                                                ? 'text-[var(--color-primary,#FF6B35)]' 
+                                                : 'text-gray-800 hover:text-[var(--color-primary,#FF6B35)]'
                                         }`}
                                     >
                                         {rootCat.cat_name}
                                     </Link>
                                     
-                                    {/* Mega Menu */}
                                     {activeRootCategory?.id === rootCat.id && renderMegaMenu(rootCat)}
                                 </li>
                             ))}
                             
-                            {/* Static Menu Items */}
                             {STATIC_MENU_ITEMS.map(item => (
                                 <li key={item.name} className="relative">
                                     <Link 
                                         href={item.href} 
-                                        className="text-sm font-bold uppercase py-3 px-4 block text-slate-700 hover:text-blue-600 transition-colors"
+                                        className="text-sm font-bold uppercase py-4 px-5 block text-gray-800 hover:text-[var(--color-primary,#FF6B35)] transition-colors"
                                     >
                                         {item.name}
                                     </Link>

@@ -16,11 +16,11 @@ export default function HomePage() {
             <HeroSectionComponent />
 
             {/* 💡 NEW: Offer Slider Section */}
-            <div className="container mx-auto px-4">
+            <div className="container mx-auto px-2 md:px-10">
                  <OfferSlider />
             </div>
             
-            <div className="container mx-auto px-4 space-y-12">
+            <div className="container mx-auto space-y-12 px-2 md:px-10">
                 {/* 2. Dynamic Home Sections */}
                 <HomeSectionComponent /> 
             </div>

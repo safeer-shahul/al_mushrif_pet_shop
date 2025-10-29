@@ -1,4 +1,3 @@
-// src/app/(public)/products/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -27,44 +26,32 @@ const ProductListingPage: React.FC = () => {
     const [apiError, setApiError] = useState<string | null>(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     
-    // --- URL PARAMETER HANDLING ---
-    const urlCategoryId = searchParams.get('category_id');
-    const urlBrandId = searchParams.get('brand_id');
-    const urlOfferId = searchParams.get('offer_id');
-    
+    // --- Central State for Filters ---
     const [currentFilters, setCurrentFilters] = useState<ProductQueryParams>({
-        category_id: urlCategoryId || undefined,
-        brand_id: urlBrandId || undefined,
-        offer_id: urlOfferId || undefined,
+        category_id: searchParams.get('category_id') || undefined,
+        brand_id: searchParams.get('brand_id') || undefined,
+        offer_id: searchParams.get('offer_id') || undefined,
+        search: searchParams.get('search') || undefined,
         page: 1,
         sort: 'latest', 
     });
 
-    useEffect(() => {
-        setCurrentFilters(prev => ({
-            ...prev,
-            category_id: urlCategoryId || undefined,
-            brand_id: urlBrandId || undefined,
-            offer_id: urlOfferId || undefined,
-            page: 1, 
-        }));
-    }, [urlCategoryId, urlBrandId, urlOfferId]);
-
-
-    // --- Data Fetcher (unchanged) ---
+    // --- Data Fetcher ---
     const loadData = useCallback(async (filters: ProductQueryParams) => {
         setLoading(true);
         setApiError(null);
         try {
+            // Filter out empty/null parameters
             const validFilters = Object.fromEntries(
                 Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== '')
             ) as ProductQueryParams;
 
             const [productData, categoryData] = await Promise.all([
-                fetchProducts(validFilters),
+                fetchProducts(validFilters), // <--- Triggers the API call to port 8000
                 fetchAllRootCategories()
             ]);
             setProductsData(productData);
+            console.log(categoryData,'categoryData')
             setAllCategories(categoryData);
         } catch (err: any) {
             setApiError(err.message || 'Failed to load products or category structure.');
@@ -75,11 +62,46 @@ const ProductListingPage: React.FC = () => {
         }
     }, [fetchProducts, fetchAllRootCategories]);
 
+    
+    // 💡 FIX 1: Sync state from URL parameters (runs whenever URL changes)
+    useEffect(() => {
+        const newCategoryId = searchParams.get('category_id');
+        const newBrandId = searchParams.get('brand_id');
+        const newOfferId = searchParams.get('offer_id');
+        const newSearch = searchParams.get('search');
+        const newSort = searchParams.get('sort');
+
+        setCurrentFilters(prev => {
+            // Only force an update if one of the key URL params changed
+            if (newCategoryId !== prev.category_id || 
+                newBrandId !== prev.brand_id ||
+                newOfferId !== prev.offer_id ||
+                newSearch !== prev.search ||
+                newSort !== prev.sort) {
+                
+                return {
+                    ...prev,
+                    category_id: newCategoryId || undefined,
+                    brand_id: newBrandId || undefined,
+                    offer_id: newOfferId || undefined,
+                    search: newSearch || undefined,
+                    sort: newSort || 'latest',
+                    page: 1, // Reset to page 1 on new filter/category navigation
+                };
+            }
+            return prev;
+        });
+
+    }, [searchParams]); // Depend only on searchParams changes
+    
+    
+    // 💡 FIX 2: Trigger data fetch only when currentFilters state changes
     useEffect(() => {
         loadData(currentFilters);
-    }, [currentFilters, loadData]);
+    }, [currentFilters, loadData]); // loadData is stable, so this only runs when currentFilters changes
 
-    // --- Filter Handlers (unchanged) ---
+
+    // --- Filter Handler (Used by Filter Drawer/Sort Dropdown) ---
     const handleFilterChange = (newFilters: Partial<ProductQueryParams>) => {
         setCurrentFilters(prev => ({
             ...prev,
@@ -88,11 +110,11 @@ const ProductListingPage: React.FC = () => {
         }));
     }
     
-    // --- Title Logic (Point 4) ---
+    // --- Title Logic ---
     const getActiveTitle = () => {
-        if (urlOfferId) return 'Offers';
-        if (urlBrandId) return 'Brands';
-        if (urlCategoryId) {
+        if (currentFilters.offer_id) return 'Offers';
+        if (currentFilters.brand_id) return 'Brands';
+        if (currentFilters.category_id) {
             return 'Shop Categories';
         }
         return 'All Products';
@@ -105,31 +127,21 @@ const ProductListingPage: React.FC = () => {
                 {getActiveTitle()}
             </h1>
 
-            {/* 💡 FIX 1: CATEGORY SLIDER MOVED TO THE TOP (Point 2 & 3) */}
-            {/* Only show CategorySlider if we navigated via a category (urlCategoryId is set) */}
-            {urlCategoryId && (
-                 <div className="mb-8">
+            {/* Category Slider */}
+            {currentFilters.category_id && (
+                <div className="mb-8">
                     <CategorySlider 
                         allCategories={allCategories} 
-                        currentCategoryId={urlCategoryId} 
+                        currentCategoryId={currentFilters.category_id} 
                     />
-                 </div>
+                </div>
             )}
-            {/* 💡 END CATEGORY SLIDER */}
+            {/* END CATEGORY SLIDER */}
 
 
             <div className="grid grid-cols-12 gap-8">
                 
-                {/* ❌ OLD LEFT SIDEBAR REMOVED. 
-                    The filter drawer is now ONLY visible via the button/modal on mobile.
-                    On desktop, the Filter Drawer content is hidden until the button is clicked 
-                    (or you can integrate the Drawer content inline if desired, but 
-                    based on the screenshot, you want a full-width focus).
-                */}
-                
-                {/* 💡 FILTER DRAWER BUTTON (ALWAYS VISIBLE, BUT HIDES CONTENT ON DESKTOP) */}
                 <div className='col-span-12'>
-                    {/* Filter Button is now always inline with the products on desktop/mobile */}
                     <div className="flex justify-between items-center mb-4">
                         <h2 className='text-xl font-semibold text-slate-700'>
                             {productsData?.total || 0} Products Found
@@ -147,8 +159,8 @@ const ProductListingPage: React.FC = () => {
                             
                             {/* Sorting Dropdown */}
                             <div className="flex items-center space-x-2">
-                                 <label className='text-sm text-gray-600'>Sort By:</label>
-                                 <select 
+                                <label className='text-sm text-gray-600'>Sort By:</label>
+                                <select 
                                     onChange={(e) => handleFilterChange({ sort: e.target.value })}
                                     value={currentFilters.sort || 'latest'}
                                     className='text-sm border border-gray-300 rounded-lg'
@@ -156,21 +168,19 @@ const ProductListingPage: React.FC = () => {
                                     <option value="latest">Latest</option>
                                     <option value="price_asc">Price: Low to High</option>
                                     <option value="price_desc">Price: High to Low</option>
-                                 </select>
+                                </select>
                             </div>
                         </div>
                     </div>
                 </div>
 
 
-                {/* Product Grid - Now spans the full width of the main content area (12 columns) */}
+                {/* Product Grid - Full Width */}
                 <section className="col-span-12"> 
                     
-                    {/* PRODUCT GRID */}
                     {loading ? (
                         <LoadingSpinner />
                     ) : productsData && productsData.data.length > 0 ? (
-                        // Grid Layout: 2 columns mobile, 5 columns desktop (xl:grid-cols-5)
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                             {productsData.data.map((product: any) => (
                                 <ProductCard key={product.id} product={product} /> 
@@ -185,7 +195,7 @@ const ProductListingPage: React.FC = () => {
                 </section>
             </div>
             
-            {/* MOBILE FILTER DRAWER INSTANTIATION (Rendered outside the grid flow, always fixed) */}
+            {/* MOBILE FILTER DRAWER INSTANTIATION */}
             <ProductFilterDrawer 
                 isOpen={isDrawerOpen}
                 onClose={() => setIsDrawerOpen(false)}

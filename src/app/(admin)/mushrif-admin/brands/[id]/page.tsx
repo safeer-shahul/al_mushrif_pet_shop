@@ -19,7 +19,6 @@ const BrandEditPage: React.FC = () => {
     const [apiError, setApiError] = useState<string | null>(null);
     const [localLoading, setLocalLoading] = useState(false);
 
-    // Fetch the specific brand data
     const fetchData = useCallback(async () => {
         if (!id) return;
         setLoading(true);

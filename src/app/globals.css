@@ -22,6 +22,8 @@ body, html, .app-font-strict {
   --color-text-dark: #1f2937;
 }
 
+
+
 @layer base {
   /* Enforce a light theme background and text color globally */
   body {

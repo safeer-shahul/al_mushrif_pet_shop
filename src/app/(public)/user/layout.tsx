@@ -1,4 +1,3 @@
-// src/app/user/layout.tsx ⬅️ This file replaces the previous (user-dashboard)/layout.tsx
 'use client';
 
 import React from 'react';
@@ -7,6 +6,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
+
+// Define the primary color variable for easy styling consistency
+const PRIMARY_COLOR = 'var(--color-primary, #FF6B35)';
 
 const NAV_ITEMS = [
     { name: 'My Profile', href: '/user/profile', icon: FaUserCircle },
@@ -27,27 +29,60 @@ export default function UserDashboardLayout({
     return (
         <ProtectedRoute requireAuth={true} redirectTo="/login">
             <div className="container mx-auto px-4 py-8 min-h-screen">
-                <h1 className="text-3xl font-bold text-slate-800 mb-6 border-b pb-2">
-                    Welcome, {user?.first_name || user?.username || 'Customer'}
+                
+                {/* Branded Welcome Header */}
+                <h1 className="text-2xl font-extrabold text-slate-800 mb-6 pb-2" style={{ color: PRIMARY_COLOR }}>
+                    Hello, {user?.first_name || user?.username || 'Customer'} 
                 </h1>
                 
+                {/* Mobile Navigation (Scrollable Tab Bar) */}
+                <nav className="lg:hidden mb-6 overflow-x-auto whitespace-nowrap border-b border-gray-200 shadow-sm bg-white rounded-lg">
+                    <div className="flex space-x-2 p-2">
+                        {NAV_ITEMS.map((item) => {
+                            const isActive = pathname.startsWith(item.href);
+
+                            return (
+                                <Link key={item.name} href={item.href} passHref>
+                                    <div
+                                        className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors cursor-pointer text-sm font-semibold flex-shrink-0 ${
+                                            isActive
+                                                ? 'text-white shadow-md'
+                                                : 'text-slate-700 hover:bg-gray-100'
+                                        }`}
+                                        style={{ 
+                                            backgroundColor: isActive ? PRIMARY_COLOR : 'transparent',
+                                            color: isActive ? 'white' : 'var(--color-text-default, #334155)',
+                                        }}
+                                    >
+                                        <item.icon className="w-4 h-4" />
+                                        <span>{item.name}</span>
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </nav>
+
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     
-                    {/* Sidebar (Desktop: Col 3, Mobile: Hidden) */}
+                    {/* Sidebar (Desktop) */}
                     <aside className="lg:col-span-3 hidden lg:block">
-                        <nav className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 space-y-2 sticky top-24">
+                        <nav className="bg-white p-5 rounded-xl shadow-2xl border border-gray-100 space-y-3 sticky top-24">
                             {NAV_ITEMS.map((item) => {
-                                // Check if the current pathname starts with the item's href
                                 const isActive = pathname.startsWith(item.href);
 
                                 return (
                                     <Link key={item.name} href={item.href} passHref>
                                         <div
-                                            className={`flex items-center space-x-3 p-3 rounded-lg transition-colors cursor-pointer ${
+                                            className={`flex items-center space-x-3 p-4 rounded-xl transition-all cursor-pointer ${
                                                 isActive
-                                                    ? 'bg-blue-600 text-white font-semibold shadow-md'
-                                                    : 'text-slate-700 hover:bg-gray-100'
+                                                    ? 'text-white font-bold shadow-lg'
+                                                    : 'text-slate-700 hover:bg-gray-100 hover:text-slate-900 font-medium'
                                             }`}
+                                            style={{ 
+                                                backgroundColor: isActive ? PRIMARY_COLOR : 'transparent',
+                                                color: isActive ? 'white' : 'inherit',
+                                            }}
                                         >
                                             <item.icon className="w-5 h-5" />
                                             <span>{item.name}</span>

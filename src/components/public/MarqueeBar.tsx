@@ -21,7 +21,7 @@ const MarqueeBar: React.FC = () => {
     const [textWidth, setTextWidth] = useState(0);
     const animationFrameRef = useRef<number>(0);
     
-    // SLOWED DOWN: Reduced from 1.5 to 0.5 pixels per frame
+    // Scroll speed: 0.5 pixels per frame
     const SCROLL_SPEED = 0.5;
 
     // Load marquee data
@@ -50,7 +50,7 @@ const MarqueeBar: React.FC = () => {
     // Get combined marquee content
     const getFullMarqueeContent = () => {
         if (!marquees || marquees.length === 0) return '';
-        return marquees.map(m => m.content).join('   |   ');
+        return marquees.map(m => m.content).join('   •   ');
     };
 
     // Measure container and text widths
@@ -85,7 +85,7 @@ const MarqueeBar: React.FC = () => {
                 if (prevPosition < -textWidth) {
                     return containerWidth;
                 }
-                // Move text to the left by speed amount (SLOWED DOWN)
+                // Move text to the left by speed amount
                 return prevPosition - SCROLL_SPEED;
             });
             
@@ -110,8 +110,8 @@ const MarqueeBar: React.FC = () => {
 
     return (
         <div 
-            className="w-full py-1.5 text-xs sm:text-sm font-medium shadow-md"
-            style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+            className="w-full py-2 text-xs sm:text-sm font-medium"
+            style={{ backgroundColor: '#000000', color: 'white' }}
         >
             <div className="flex items-center">
                 <FaBullhorn className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 mx-4" />
@@ -119,13 +119,16 @@ const MarqueeBar: React.FC = () => {
                 {/* Marquee Container */}
                 <div 
                     ref={containerRef} 
-                    className="relative overflow-hidden flex-1 h-5"
+                    className="relative overflow-hidden flex-1"
+                    style={{ height: '24px' }}
                 >
                     <p 
                         ref={textRef}
-                        className="absolute whitespace-nowrap"
+                        className="absolute whitespace-nowrap flex items-center"
                         style={{ 
                             left: `${position}px`,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
                         }}
                     >
                         {getFullMarqueeContent()}

@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { FaGift } from 'react-icons/fa';
 import { Offer } from '@/types/offer'; 
 import { usePublicOfferService } from '@/services/public/offerService'; 
 import { useCategoryService } from '@/services/admin/categoryService';
@@ -46,11 +45,10 @@ const OfferSlider: React.FC = () => {
     }
     
     return (
-        <div className="space-y-4">
-            
-            {/* 💡 FIX: Removed icon, added text-center and mb-4 to center the title */}
-            <header className="w-full text-center mb-4">
-                <h2 className="text-3xl font-bold text-slate-800 border-b pb-2 inline-block">
+        <section className="space-y-4 mb-10">
+            {/* Header matching HomeSectionSlider style - no icon */}
+            <header className="flex justify-between items-center pb-2 border-b border-gray-200">
+                <h2 className="text-2xl font-bold text-slate-800">
                     Offers for You
                 </h2>
             </header>
@@ -77,7 +75,7 @@ const OfferSlider: React.FC = () => {
                     );
                 })}
             </div>
-        </div>
+        </section>
     );
 };
 

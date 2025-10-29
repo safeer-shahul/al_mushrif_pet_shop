@@ -80,7 +80,7 @@ const HeroSectionComponent: React.FC = () => {
     return (
         <div className="relative w-full overflow-hidden bg-gray-100 shadow-lg">
             <Link href={linkHref} className="block">
-                <div className="h-96 flex items-center justify-center">
+                <div className="h-24 md:h-96 flex items-center justify-center">
                     {imageUrl ? (
                         <img 
                             // Use the resolved URL

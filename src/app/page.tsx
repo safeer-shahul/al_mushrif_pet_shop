@@ -6,6 +6,5 @@ import { redirect } from 'next/navigation';
  * Note: We redirect to '/home' not '/(public)'
  */
 export default function RootPage() {
-  // Redirect to a non-route-group path
   redirect('/home');
 }

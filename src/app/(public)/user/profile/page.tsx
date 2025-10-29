@@ -12,8 +12,8 @@ const ProfilePage: React.FC = () => {
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 space-y-6">
-            <h2 className="text-2xl font-bold text-slate-800 flex items-center border-b pb-3">
-                <FaUserCircle className="mr-2 text-blue-600" /> Account Overview
+            <h2 className="text-2xl font-bold text-slate-800 flex items-center border-b border-gray-200 pb-3">
+                Account Overview
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
