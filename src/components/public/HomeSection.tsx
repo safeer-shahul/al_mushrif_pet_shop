@@ -60,7 +60,7 @@ const HomeSectionComponent: React.FC = () => {
     }
 
     return (
-        <div className="container mx-auto">
+        <div className="container mx-auto px-4 lg:px-8 xl:px-14">
             {sections.map(section => {
                 const sectionProducts = section.products; 
                 

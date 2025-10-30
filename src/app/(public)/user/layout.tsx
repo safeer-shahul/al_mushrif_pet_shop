@@ -31,7 +31,7 @@ export default function UserDashboardLayout({
             <div className="container mx-auto px-4 py-8 min-h-screen">
                 
                 {/* Branded Welcome Header */}
-                <h1 className="text-2xl font-extrabold text-slate-800 mb-6 pb-2" style={{ color: PRIMARY_COLOR }}>
+                <h1 className="text-2xl font-extrabold text-slate-800 mb-2 pb-2" style={{ color: PRIMARY_COLOR }}>
                     Hello, {user?.first_name || user?.username || 'Customer'} 
                 </h1>
                 

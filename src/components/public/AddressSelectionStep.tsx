@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaMapMarkerAlt, FaEdit, FaTrash, FaPlus, FaCheckCircle, FaSpinner, FaExclamationTriangle, FaPhone } from 'react-icons/fa';
 import { Address } from '@/types/user';
 import { useAddressService } from '@/services/public/addressService';
@@ -30,7 +30,11 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
     const [showAddressForm, setShowAddressForm] = useState(false);
     const [editingAddress, setEditingAddress] = useState<Address | null>(null);
 
-    const loadAddresses = useCallback(async () => {
+    // Use ref to track if initial load is done
+    const hasLoadedRef = useRef(false);
+
+    // Remove selectedAddress from dependencies to prevent infinite loop
+    const loadAddresses = useCallback(async (shouldAutoSelect: boolean = false) => {
         setLoading(true);
         setError(null);
         
@@ -38,30 +42,29 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
             const data = await fetchUserAddresses();
             setAddresses(data || []);
             
-            // Auto-select logic
-            if (data.length > 0) {
-                 const newDefault = data.find(a => a.is_default) || data[0];
-                 // If no address is currently selected OR the selected address was deleted/updated
-                 if (!selectedAddress || !data.some(a => a.id === selectedAddress.id)) {
+            // Auto-select logic - only run when explicitly requested
+            if (shouldAutoSelect && data.length > 0) {
+                const newDefault = data.find(a => a.is_default) || data[0];
+                // Only auto-select if no address is currently selected
+                if (!selectedAddress) {
                     setSelectedAddress(newDefault); 
-                 }
-            } else {
-                 setSelectedAddress(null);
+                }
             }
 
         } catch (err: any) {
-             setError('Failed to load your addresses. Please try again.');
+            setError('Failed to load your addresses. Please try again.');
         } finally {
             setLoading(false);
         }
-    }, [fetchUserAddresses, selectedAddress, setSelectedAddress]);
+    }, [fetchUserAddresses]); // Removed selectedAddress and setSelectedAddress from dependencies
 
+    // Load addresses only once on mount
     useEffect(() => {
-        // Only load addresses if we are not currently in the saving state
-        if (!isSaving) {
-            loadAddresses();
+        if (!hasLoadedRef.current && !isSaving) {
+            hasLoadedRef.current = true;
+            loadAddresses(true); // Auto-select on initial load
         }
-    }, [loadAddresses, isSaving]);
+    }, []); // Empty dependency array - only run once on mount
 
     // --- Form Management Handlers ---
     const handleAddAddress = () => {
@@ -85,8 +88,8 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
         setIsSaving(false);
         
         // Refresh the list and select the new/updated address
-        loadAddresses().then(() => {
-             setSelectedAddress(savedAddress);
+        loadAddresses(false).then(() => {
+            setSelectedAddress(savedAddress);
         });
     }
 
@@ -99,8 +102,19 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
             await deleteAddress(id);
             toast.success("Address deleted.");
             
-            // After successful deletion, reload addresses. loadAddresses handles re-selecting a default.
-            await loadAddresses();
+            // After successful deletion, reload addresses
+            await loadAddresses(false);
+            
+            // If deleted address was selected, clear selection or select another
+            if (selectedAddress?.id === id) {
+                const remainingAddresses = addresses.filter(a => a.id !== id);
+                if (remainingAddresses.length > 0) {
+                    const newDefault = remainingAddresses.find(a => a.is_default) || remainingAddresses[0];
+                    setSelectedAddress(newDefault);
+                } else {
+                    setSelectedAddress(null);
+                }
+            }
 
         } catch (err: any) {
             toast.error(err.message || "Failed to delete address.");
@@ -183,7 +197,7 @@ const AddressSelectionStep: React.FC<AddressSelectionStepProps> = ({
                             </div>
                             
                             {/* Actions on the bottom right */}
-                             <div className='absolute bottom-2 right-4 flex space-x-3'>
+                            <div className='absolute bottom-2 right-4 flex space-x-3'>
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handleEditAddress(address); }}
                                     className="p-1 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-50"

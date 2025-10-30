@@ -17,6 +17,7 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+    // ... (All existing hooks, state, and memoized values remain the same) ...
     const { getStorageUrl } = useCategoryService();
     const { addItem, cartLoading, setIsCartDrawerOpen } = useCart();
     const { isAuthenticated, user } = useAuth();
@@ -29,7 +30,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     
     const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
     
-    // Determine if product is out of stock or inactive
     const isOutOfStock = useMemo(() => {
         if (product.variants && product.variants.length > 0) {
             return product.variants.every(v => 
@@ -43,7 +43,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         return product.is_disabled === true;
     }, [product]);
     
-    // Get all variants
     const variants = useMemo(() => {
         if (product.variants && product.variants.length > 0) {
             return product.variants.map(variant => ({
@@ -73,12 +72,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     
     const selectedVariant = useMemo(() => {
         if (variants.length === 0) return null;
-        return variants[selectedVariantIndex] || variants[0];
+        // Ensure selectedVariantIndex is valid, fallback to 0
+        const index = variants[selectedVariantIndex] ? selectedVariantIndex : 0;
+        return variants[index] || variants[0];
     }, [variants, selectedVariantIndex]);
     
     if (!selectedVariant) return null;
     
-    // Calculate prices
     const basePrice = selectedVariant.price || 0;
     const offerPrice = selectedVariant.offer_price;
     const finalPrice = offerPrice !== null ? offerPrice : basePrice;
@@ -91,9 +91,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     }, [basePrice, offerPrice]);
     
     const isVariantOutOfStock = selectedVariant.quantity !== undefined && 
+                               selectedVariant.quantity !== null &&
                                selectedVariant.quantity <= 0;
     
-    // Get images for hover effect
     const variantImages = useMemo(() => {
         let images: any[] = selectedVariant?.images || [];
         
@@ -200,13 +200,14 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     return (
         <Link href={`/product/${product.id}`} passHref>
             <div 
-                className="relative bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col h-full group"
+                className="relative bg-white rounded-lg min-h-90 md:min-h-112 overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col h-full group"
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
                 
-                {/* Image Section - Full Width, No Padding */}
+                {/* Image Section - Fixed Aspect Ratio */}
                 <div className="relative w-full pt-[100%] bg-gray-50 overflow-hidden">
+                    {/* ... (Image and badges code unchanged) ... */}
                     {imageUrl ? (
                         <img 
                             src={imageUrl} 
@@ -247,37 +248,39 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                     )}
                 </div>
                 
-                {/* Content Section */}
-                <div className="p-4 flex-1 flex flex-col">
+                {/* Content Section - Use flex-1 to occupy all available vertical space */}
+                <div className="py-1 px-3 flex-1 flex flex-col justify-start"> {/* Use justify-end to anchor content to the bottom */}
                     
-                    {/* Price with Discount Badge */}
-                    <div>
-                        {discountPercent && (
-                            <span className="inline-block bg-[var(--color-primary,#FF6B35)] text-white text-xs font-bold px-2 py-0.5 rounded mb-1">
-                                {discountPercent}% Off
-                            </span>
-                        )}
+                    {/* Price with Discount Badge (Consistent height for prices and discount badge area) */}
+                    <div className="flex-shrink-0"> 
                         <div className="flex items-baseline gap-2">
-                            <span className="text-xl font-bold text-gray-900">
+                            <span className="text-sm md:text-xl font-bold text-gray-900">
                                 AED {finalPrice.toFixed(2)}
                             </span>
                             {offerPrice !== null && (
-                                <span className="text-sm text-gray-400 line-through">
+                                <span className="text-xs md:text-sm text-gray-400 line-through">
                                     AED {basePrice.toFixed(2)}
                                 </span>
                             )}
                         </div>
                     </div>
                     
-                    {/* Product Title */}
-                    <h3 className="text-lg font-semibold text-gray-800 line-clamp-2 mb-2 min-h-[30px]">
+                    {/* Product Title - Fixed height area for 2 lines of text (approx 48px) */}
+                    <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-2 flex-shrink-0 h-12"> 
+                         {/* Added h-12 for fixed height to prevent content jumping */}
                         {product.prod_name}
                     </h3>
                     
-                    {/* Variant Selector */}
-                    {product.has_variants === true && variants.length > 1 && (
-                        <div className="mb-3" onClick={e => e.stopPropagation()}>
-                            <div className="flex flex-wrap gap-2">
+                    {/* Variant Selector - Scrollable Container for Mobile/Many Variants */}
+                    <div 
+                        className={`mb-3 flex-shrink-0`} 
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {product.has_variants === true && variants.length > 1 && (
+                            <div 
+                                className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" 
+                                style={{ WebkitOverflowScrolling: 'touch' }} // iOS smooth scrolling
+                            >
                                 {variants.map((variant, index) => {
                                     const isOutOfStock = variant.quantity !== undefined && variant.quantity <= 0;
                                     const percentOff = variant.offer_price !== null && variant.price > 0
@@ -290,7 +293,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                                             type="button"
                                             onClick={(e) => handleVariantChange(e, index)}
                                             disabled={isOutOfStock}
-                                            className={`relative overflow-hidden rounded-md transition-all ${
+                                            className={`relative overflow-hidden rounded-md flex-shrink-0 transition-all ${
                                                 isOutOfStock ? 'opacity-40 cursor-not-allowed' : ''
                                             }`}
                                         >
@@ -302,24 +305,28 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                                                 {variant.variant_name || 'Default'}
                                             </div>
                                             {percentOff && (
-                                                <div className="bg-green-100 text-green-700 text-xs font-bold py-1 px-3">
+                                                <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1 rounded-bl-md leading-none">
                                                     {percentOff}%
                                                 </div>
+                                                // Removed the green-100 badge from the original code for a cleaner look
+                                            )}
+                                            {isOutOfStock && (
+                                                <div className="absolute inset-0 bg-gray-500 opacity-20"></div>
                                             )}
                                         </button>
                                     );
                                 })}
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                     
                 </div>
                 
-                {/* Add to Cart Button */}
+                {/* Add to Cart Button - Fixed Height at the very bottom */}
                 <button 
                     onClick={handleAddToCart}
                     disabled={isVariantOutOfStock || isProductDisabled || cartLoading}
-                    className={`w-full py-3 text-white font-semibold text-sm flex items-center justify-center transition-all ${
+                    className={`w-full py-3 text-white font-semibold text-sm flex items-center justify-center transition-all flex-shrink-0 ${
                         isVariantOutOfStock || isProductDisabled || cartLoading
                             ? 'bg-gray-400 cursor-not-allowed' 
                             : 'bg-[var(--color-primary,#FF6B35)] hover:bg-[var(--color-primary,#FF6B35)]/90'

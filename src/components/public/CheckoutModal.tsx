@@ -227,7 +227,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
             <div className="relative bg-white w-full max-w-xl mx-auto my-8 p-6 rounded-xl shadow-2xl transform transition-all duration-300">
 
                 {/* Header and Step Indicator */}
-                <div className="border-b border-gray-200 pb-4">
+                <div className="border-b border-gray-200 mb-2 pb-2">
                     <div className="flex justify-between items-center mb-4">
                          <h3 className="text-2xl font-bold text-slate-800 flex items-center">
                             <FaShoppingCart className="mr-2 w-6 h-6 text-[var(--color-primary,#FF6B35)]" />

@@ -34,8 +34,8 @@ const OrderSummaryStep: React.FC<OrderSummaryStepProps> = ({
     }
 
     return (
-        <div className="space-y-6">
-            <h4 className="text-lg md:text-xl font-bold text-slate-800 pb-3">Final Confirmation</h4>
+        <div className="space-y-4">
+            <h4 className="text-lg md:text-xl font-bold text-slate-800">Final Confirmation</h4>
 
             {/* Delivery Details Card */}
             <div className="p-4 border-2 border-gray-200 rounded-xl bg-white shadow-sm space-y-3">
@@ -54,7 +54,7 @@ const OrderSummaryStep: React.FC<OrderSummaryStepProps> = ({
 
             {/* Price Breakdown */}
             <h4 className="text-base font-bold text-slate-800">Price Details ({cartItems.length} Items)</h4>
-            <div className="bg-gray-50 py-4 rounded-xl space-y-2 text-gray-700">
+            <div className="bg-gray-50  rounded-xl space-y-2 text-gray-700">
                 <div className="flex justify-between text-sm">
                     <span>Subtotal (Items Price):</span>
                     <span className="font-medium">AED {totalItemsPrice.toFixed(2)}</span>
@@ -87,7 +87,7 @@ const OrderSummaryStep: React.FC<OrderSummaryStepProps> = ({
                 <button
                     onClick={onContinue}
                     disabled={orderPlacing || payablePrice <= 0}
-                    className="px-6 py-3 text-sm md:text-lg  bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors shadow-lg disabled:bg-gray-400 disabled:shadow-none flex items-center justify-center min-w-[100px]"
+                    className="px-6 py-3 text-sm md:text-lg  bg-[var(--color-primary,#FF6B35)] text-white font-bold rounded-lg hover:bg-[var(--color-primary,#FF6B35)]/90 transition-colors shadow-lg disabled:bg-gray-400 disabled:shadow-none flex items-center justify-center min-w-[100px]"
                 >
                     {orderPlacing ? (
                         <>
@@ -95,7 +95,7 @@ const OrderSummaryStep: React.FC<OrderSummaryStepProps> = ({
                         </>
                     ) : (
                         <>
-                            <FaMoneyBillWave className='mr-2' /> Confirm & Pay
+                            <FaMoneyBillWave className='mr-2' /> Confirm Order
                         </>
                     )}
                 </button>
