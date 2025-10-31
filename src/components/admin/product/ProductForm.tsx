@@ -1,6 +1,6 @@
 // src/components/admin/product/ProductForm.tsx
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaSave, FaInfoCircle, FaDollarSign, FaTags, FaBox, FaFolderOpen } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
@@ -13,60 +13,40 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ProductImageManager from './ProductImageManager';
 
 // ----------------------------------------------------------------------
-// 📝 RICH TEXT EDITOR IMPLEMENTATION (Using react-simple-wysiwyg)
+// 📝 TEXTAREA IMPLEMENTATION (Temporary Replacement for WYSIWYG)
 // ----------------------------------------------------------------------
 
-// Dynamic import for the simple editor, returning the whole module
-const SimpleEditorModules = dynamic(
-    () => import('react-simple-wysiwyg'),
-    {
-        ssr: false,
-        loading: () => <div className="p-4 border border-gray-200 rounded-lg text-sm text-gray-500">Loading editor...</div>
-    }
-);
-
-interface WysiwygEditorProps {
+interface DescriptionInputProps {
     value: string | null;
     onChange: (html: string) => void;
     placeholder?: string;
     disabled: boolean;
 }
 
-const SimpleWysiwygEditor: React.FC<WysiwygEditorProps> = ({ value, onChange, placeholder, disabled }) => {
-    // Cast the dynamically imported module to 'any' to access its named exports safely
-    const modules: any = SimpleEditorModules;
-    // Ensure modules are loaded before attempting to access exports
-    if (!modules || !modules.EditorProvider || !modules.Editor) {
-        // Return placeholder or loading state if modules haven't loaded yet
-        return <div className="p-4 border border-gray-200 rounded-lg text-sm text-gray-500">Loading editor...</div>;
-    }
-
-    const EditorProvider = modules.EditorProvider;
-    const WysiwygEditor = modules.Editor;
-
-    // Use 'any' for the event type to bypass the incompatible type conflict
-    const handleSimpleEditorChange = (e: any) => {
+/**
+ * Temporary component to replace the rich text editor with a standard textarea.
+ */
+const SimpleTextarea: React.FC<DescriptionInputProps> = ({ value, onChange, placeholder, disabled }) => {
+    
+    const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         onChange(e.target.value);
     }
 
     return (
-        <div className={disabled ? 'opacity-60 pointer-events-none' : ''}>
-            {/* FIX: Wrap the Editor component inside the required EditorProvider */}
-            <EditorProvider>
-                <WysiwygEditor
-                    value={value || ''}
-                    onChange={handleSimpleEditorChange}
-                    placeholder={placeholder}
-                    disabled={disabled}
-                    // Setting a fixed height for visual consistency
-                    containerProps={{ style: { height: '400px' } }}
-                />
-            </EditorProvider>
-        </div>
+        <textarea
+            id="description"
+            name="description"
+            value={value || ''}
+            onChange={handleTextareaChange}
+            placeholder={placeholder}
+            rows={10}
+            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+            disabled={disabled}
+        />
     );
 };
 // ----------------------------------------------------------------------
-// END WYSIWYG EDITOR COMPONENT
+// END TEXTAREA COMPONENT
 // ----------------------------------------------------------------------
 
 
@@ -77,7 +57,7 @@ interface ProductFormProps {
     isLoading: boolean;
     error: string | null;
     allBrands: Brand[];
-    allSubCategories: SubCategory[];
+    allSubCategories: SubCategory[]; 
     allFilterTypes: FilterType[];
     allRootCategories: RootCategory[];
     dependenciesLoading: boolean;
@@ -116,14 +96,16 @@ const flattenCategories = (rootCats: RootCategory[]): FlatCategory[] => {
     };
 
     const traverse = (category: any, path: string[], depth: number) => {
+        const categoryId = category.id || (category.cat_id || category.sub_cat_id); 
         const categoryName = category.cat_name || category.sub_cat_name || "Unknown";
         const currentPath = [...path, categoryName];
         const isRoot = Boolean(category.cat_name);
         const children = getChildren(category);
         const isLeaf = children.length === 0;
-        if (isLeaf && !isRoot) {
+
+        if (isLeaf && !isRoot && categoryId) {
             flatList.push({
-                id: category.id,
+                id: categoryId,
                 name: categoryName,
                 path: currentPath.join(' > '),
                 depth: depth
@@ -149,7 +131,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
     isLoading,
     error,
     allBrands,
-    allSubCategories,
     allFilterTypes,
     allRootCategories,
     dependenciesLoading,
@@ -170,9 +151,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
     });
     const [localLoading, setLocalLoading] = useState(false);
     const [baseImages, setBaseImages] = useState<ProductImage[]>(initialData?.images || []);
+    
     const flatSubCategories = useMemo(() => {
         return flattenCategories(allRootCategories);
     }, [allRootCategories]);
+    
     const groupedCategories = useMemo<GroupedCategoriesType>(() => {
         const groups: GroupedCategoriesType = {};
         flatSubCategories.forEach(cat => {
@@ -218,8 +201,10 @@ const ProductForm: React.FC<ProductFormProps> = ({
             setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
-    const handleDescriptionChange = useCallback((html: string) => {
-        setFormData(prev => ({ ...prev, description: html }));
+    
+    // Callback function is now simplified for plain text input
+    const handleDescriptionChange = useCallback((text: string) => {
+        setFormData(prev => ({ ...prev, description: text }));
     }, []);
 
     const handleFilterChange = useCallback((filterTypeId: string, itemId: string, isChecked: boolean) => {
@@ -228,12 +213,15 @@ const ProductForm: React.FC<ProductFormProps> = ({
             let itemIds = currentFilters[filterTypeId] || [];
 
             if (isChecked) {
-                itemIds = [...itemIds, itemId];
+                if (!itemIds.includes(itemId)) {
+                    itemIds = [...itemIds, itemId];
+                }
             } else {
                 itemIds = itemIds.filter(id => id !== itemId);
             }
 
             const newFilters = { ...currentFilters, [filterTypeId]: itemIds.filter(Boolean) };
+            
             if (newFilters[filterTypeId].length === 0) {
                 delete newFilters[filterTypeId];
             }
@@ -247,16 +235,13 @@ const ProductForm: React.FC<ProductFormProps> = ({
         try {
             const dataToSave = {
                 ...formData,
-                // 1. Convert the object to a JSON string for the API payload
                 product_filters: JSON.stringify(formData.product_filters),
             };
 
-            // 2. Use a double assertion: Cast to 'unknown' first, then to the target type,
-            // to resolve the TypeScript incompatibility between string and ProductFilters.
             await onSave(dataToSave as unknown as Partial<Product>, formData.id);
-            onFullDataRefresh();
+            onFullDataRefresh(); 
         } catch (e) {
-            console.error(e);
+            console.error('Product save error:', e);
         } finally {
             setLocalLoading(false);
         }
@@ -384,21 +369,22 @@ const ProductForm: React.FC<ProductFormProps> = ({
                     </div>
                 </div>
 
-                {/* Product Description Section with Simple WYSIWYG */}
+                {/* Product Description Section with Simple Textarea */}
                 <div className="pt-4 border-t border-gray-100">
                     <div className="space-y-2">
                         <label htmlFor="description" className="block text-sm font-medium text-slate-700 flex items-center">
-                            Product Description (Rich Text)
-                            <FaInfoCircle className="ml-2 w-4 h-4 text-gray-400" title="Enter a detailed description, supports rich text formatting." />
+                            Product Description (Plain Text)
+                            <FaInfoCircle className="ml-2 w-4 h-4 text-gray-400" title="Enter a detailed description." />
                         </label>
-                        <SimpleWysiwygEditor
+                        <SimpleTextarea // <-- Using the simple textarea component
                             value={formData.description || ''}
                             onChange={handleDescriptionChange}
-                            placeholder="Enter a detailed, rich-text product description..."
+                            placeholder="Enter a detailed product description..."
                             disabled={isDisabled}
                         />
                     </div>
                 </div>
+                
                 {/* Variant Mode Toggle */}
                 <div className="pt-4 border-t border-gray-100">
                     <div className="flex items-center space-x-3">
@@ -409,7 +395,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                             checked={hasVariants}
                             onChange={handleChange}
                             className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                            disabled={isDisabled || (isEditMode && (initialData?.variants?.length ?? 0) > 0)}
+                            disabled={isDisabled || (isEditMode && (initialData?.variants?.length ?? 0) > 0)} 
                         />
                         <label htmlFor="has_variants" className="block text-md font-medium text-slate-700 flex items-center">
                             <FaTags className="mr-2 text-blue-500" />
@@ -428,7 +414,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                     </p>
                 </div>
 
-                {/* Base Pricing, Quantity, and Images Section */}
+                {/* Base Pricing, Quantity, and Images Section (Only for non-variant products) */}
                 {!hasVariants && (
                     <div className="pt-4 border-t border-gray-100 space-y-6">
                         <h3 className="text-md font-semibold text-slate-800 flex items-center">
@@ -514,8 +500,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
                             />
                         ) : (
                              <p className="text-sm text-gray-500 italic">
-                                Save the product first to enable image upload.
-                            </p>
+                                 Save the product first to enable image upload.
+                             </p>
                         )}
                     </div>
                 )}

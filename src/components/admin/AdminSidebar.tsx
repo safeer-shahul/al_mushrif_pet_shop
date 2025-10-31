@@ -169,7 +169,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, toggle, isMobile })
                                     
                                     {/* Dropdown items */}
                                     {(isOpen || isMobile) && expandedMenu === item.name && (
-                                        <ul className="mt-1.5 ml-2 pl-4 space-y-1 border-l border-slate-700">
+                                        <ul className="mt-1.5 ml-5.5 pl-2.5 space-y-1 border-l border-slate-700">
                                             {item.children.map((child) => (
                                                 <li key={child.name}>
                                                     <Link 
