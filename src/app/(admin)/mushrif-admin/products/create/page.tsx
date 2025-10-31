@@ -76,10 +76,13 @@ const ProductCreatePage: React.FC = () => {
             base_price: data.base_price || null,
             base_offer_price: data.base_offer_price || null,
             base_quantity: data.base_quantity || null,
-            has_variants: data.has_variants || false, 
+            has_variants: data.has_variants || false,
             can_return: data.can_return ?? true,
             can_replace: data.can_replace ?? true,
+            // The data.product_filters is ALREADY a stringified JSON from the form, so no need to stringify again.
+            // We ensure it is passed through as is.
             product_filters: data.product_filters || null,
+            description: null
         };
 
         try {

@@ -1,8 +1,7 @@
-// src/components/public/ProductFilterDrawer.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { FaTimes, FaFilter, FaAngleUp, FaAngleDown, FaTags, FaDollarSign, FaSortAmountDown } from 'react-icons/fa';
+import { FaTimes, FaFilter, FaAngleUp, FaAngleDown, FaTags, FaDollarSign, FaSortAmountDown, FaRedo } from 'react-icons/fa';
 import { usePublicFilterService } from '@/services/public/filterService';
 import { FilterType } from '@/types/filter';
 import { Brand } from '@/types/brand';
@@ -17,6 +16,9 @@ interface ProductFilterDrawerProps {
     onFilterChange: (newFilters: Partial<ProductQueryParams>) => void; // Function to update filters
 }
 
+// Define the primary color variable for easy styling consistency
+const PRIMARY_COLOR = 'var(--color-primary, #FF6B35)';
+
 const SORT_OPTIONS = [
     { key: 'latest', label: 'Latest (Default)' },
     { key: 'price_asc', label: 'Price: Low to High' },
@@ -30,7 +32,7 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
     const [filterTypes, setFilterTypes] = useState<FilterType[]>([]);
     const [brands, setBrands] = useState<Brand[]>([]);
     const [loading, setLoading] = useState(true);
-    const [expandedFilter, setExpandedFilter] = useState<string | null>(null);
+    const [expandedFilter, setExpandedFilter] = useState<string | null>('sort'); // Default expand sort
     
     // Local state to manage filter selections before applying
     const [localFilters, setLocalFilters] = useState<ProductQueryParams>(currentFilters);
@@ -41,7 +43,7 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
     }, [currentFilters]);
 
 
-    // Fetch all filter types and brands in parallel (unchanged)
+    // Fetch all filter types and brands in parallel
     const fetchDependencies = useCallback(async () => {
         setLoading(true);
         try {
@@ -72,24 +74,20 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
         }));
     };
 
-    // 💡 FIX 1: Handler for Checkbox Filters (Brands & Custom Filters)
+    // Handler for Checkbox Filters (Brands & Custom Filters)
     const handleCustomFilterChange = (key: keyof ProductQueryParams, value: string, isChecked: boolean) => {
         setLocalFilters(prev => {
-            // Get the current list of values for this key (as an array)
             const currentList = prev[key] ? String(prev[key]).split(',').filter(v => v) : [];
-            let newArray = [...currentList]; // Copy the array
+            let newArray = [...currentList];
 
             if (isChecked) {
-                // Add the new value if it's not already there
                 if (!newArray.includes(value)) {
                     newArray.push(value);
                 }
             } else {
-                // Remove the value
                 newArray = newArray.filter(v => v !== value);
             }
             
-            // Re-join as comma-separated string for API query params, or undefined if empty
             return {
                 ...prev,
                 [key]: newArray.length > 0 ? newArray.join(',') : undefined
@@ -97,7 +95,7 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
         });
     };
     
-    // Handler for Sort radio button change (updates local state, applied on button click or instantly)
+    // Handler for Sort radio button change (updates local state)
     const handleSortChange = (sortKey: string) => {
         setLocalFilters(prev => ({
             ...prev,
@@ -116,88 +114,113 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
         const preservedFilters = {
             category_id: currentFilters.category_id, 
             offer_id: currentFilters.offer_id,
-            // Keep default sort if no sort was applied yet
-            sort: currentFilters.sort || 'latest',
+            // Only reset sort if it was applied via the drawer, otherwise keep the URL sort
+            sort: currentFilters.sort || 'latest', 
             page: 1
         };
 
         setLocalFilters(preservedFilters);
         onFilterChange(preservedFilters);
-        onClose();
+        // Note: We don't close the drawer here to let the user see the reset state before applying
     };
 
-    // 💡 FIX 2: Helper to check if a filter value is currently selected
+    // Helper to check if a filter value is currently selected
     const isSelected = (key: keyof ProductQueryParams, value: string) => {
         const param = localFilters[key] as string | undefined;
-        // Check if the comma-separated string contains the specific value
         return param ? param.split(',').includes(value) : false;
     };
-
+    
     const filterContent = loading ? (
         <LoadingSpinner />
     ) : (
-        <div className="flex-1 overflow-y-auto space-y-6 lg:overflow-visible pr-2">
+        <div className="flex-1 overflow-y-auto space-y-4 lg:overflow-visible pr-2">
             
             {/* --- Sorting Filter --- */}
-            <div className="pb-3 border-b border-gray-100">
-                 <h4 className="font-semibold text-slate-800 mb-2 flex items-center"><FaSortAmountDown className='mr-2 text-blue-500'/> Sort By</h4>
-                 <div className="space-y-1 text-sm">
-                    {SORT_OPTIONS.map(option => (
-                        <div key={option.key} className='flex items-center'>
-                            <input
-                                type="radio"
-                                id={`sort-${option.key}`}
-                                name="sort"
-                                checked={localFilters.sort === option.key}
-                                onChange={() => handleSortChange(option.key)}
-                                className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                            />
-                            <label htmlFor={`sort-${option.key}`} className="ml-2 text-gray-700">{option.label}</label>
-                        </div>
-                    ))}
-                 </div>
+            <div className="pb-4 border-b border-gray-200">
+                 <button 
+                    type="button" 
+                    className="w-full flex justify-between items-center text-left font-bold text-slate-800 text-lg"
+                    onClick={() => setExpandedFilter(expandedFilter === 'sort' ? null : 'sort')}
+                >
+                    <span className='flex items-center'>
+                         <FaSortAmountDown className='mr-3 w-4 h-4' style={{ color: PRIMARY_COLOR }}/> Sort By
+                    </span>
+                    {expandedFilter === 'sort' ? <FaAngleUp /> : <FaAngleDown />}
+                </button>
+                 <div className={`mt-3 transition-all duration-300 overflow-hidden ${expandedFilter === 'sort' ? 'max-h-96' : 'max-h-0'}`}>
+                    <div className="space-y-2 text-sm pt-1">
+                        {SORT_OPTIONS.map(option => (
+                            <div key={option.key} className='flex items-center'>
+                                <input
+                                    type="radio"
+                                    id={`sort-${option.key}`}
+                                    name="sort"
+                                    checked={localFilters.sort === option.key}
+                                    onChange={() => handleSortChange(option.key)}
+                                    className="h-4 w-4 border-gray-300 focus:ring-2"
+                                    style={{ color: PRIMARY_COLOR, accentColor: PRIMARY_COLOR }}
+                                />
+                                <label htmlFor={`sort-${option.key}`} className="ml-2 text-gray-700">{option.label}</label>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
 
             {/* --- Price Range Filter --- */}
-            <div className="pb-3 border-b border-gray-100">
-                <h4 className="font-semibold text-slate-800 mb-2 flex items-center"><FaDollarSign className='mr-2 text-blue-500'/> Price Range (AED)</h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                        <label className="text-xs text-gray-500">Min Price</label>
-                        <input
-                            type="number"
-                            placeholder="Min"
-                            // 💡 Use localFilters for display
-                            value={localFilters.min_price || ''}
-                            onChange={(e) => handlePriceChange('min_price', e.target.value)}
-                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-xs text-gray-500">Max Price</label>
-                        <input
-                            type="number"
-                            placeholder="Max"
-                            // 💡 Use localFilters for display
-                            value={localFilters.max_price || ''}
-                            onChange={(e) => handlePriceChange('max_price', e.target.value)}
-                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg"
-                        />
+            <div className="pb-4 border-b border-gray-200">
+                <button 
+                    type="button" 
+                    className="w-full flex justify-between items-center text-left font-bold text-slate-800 text-lg"
+                    onClick={() => setExpandedFilter(expandedFilter === 'price' ? null : 'price')}
+                >
+                    <span className='flex items-center'>
+                         <FaDollarSign className='mr-3 w-4 h-4' style={{ color: PRIMARY_COLOR }}/> Price Range (AED)
+                    </span>
+                    {expandedFilter === 'price' ? <FaAngleUp /> : <FaAngleDown />}
+                </button>
+                 <div className={`mt-3 transition-all duration-300 overflow-hidden ${expandedFilter === 'price' ? 'max-h-96' : 'max-h-0'}`}>
+                    <div className="grid grid-cols-2 gap-3 text-sm pt-1">
+                        <div>
+                            <label className="text-xs text-gray-500">Min Price</label>
+                            <input
+                                type="number"
+                                placeholder="Min"
+                                value={localFilters.min_price || ''}
+                                onChange={(e) => handlePriceChange('min_price', e.target.value)}
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1"
+                                style={{ borderColor: PRIMARY_COLOR }}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-500">Max Price</label>
+                            <input
+                                type="number"
+                                placeholder="Max"
+                                value={localFilters.max_price || ''}
+                                onChange={(e) => handlePriceChange('max_price', e.target.value)}
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1"
+                                style={{ borderColor: PRIMARY_COLOR }}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
             
             {/* --- Brand Filter --- */}
-            <div className="pb-3 border-b border-gray-100">
+            <div className="pb-4 border-b border-gray-200">
                 <button 
                     type="button" 
-                    className="w-full flex justify-between items-center text-left font-semibold text-slate-800"
+                    className="w-full flex justify-between items-center text-left font-bold text-slate-800 text-lg"
                     onClick={() => setExpandedFilter(expandedFilter === 'brands' ? null : 'brands')}
                 >
-                    Brands ({brands.length}) {expandedFilter === 'brands' ? <FaAngleUp /> : <FaAngleDown />}
+                    <span className='flex items-center'>
+                         <FaTags className='mr-3 w-4 h-4' style={{ color: PRIMARY_COLOR }}/> Brands ({brands.length})
+                    </span>
+                    {expandedFilter === 'brands' ? <FaAngleUp /> : <FaAngleDown />}
                 </button>
-                <div className={`mt-2 transition-all duration-300 overflow-hidden ${expandedFilter === 'brands' ? 'max-h-96' : 'max-h-0'}`}>
-                    <div className="space-y-1 text-sm pt-2 max-h-48 overflow-y-auto">
+                <div className={`mt-3 transition-all duration-300 overflow-hidden ${expandedFilter === 'brands' ? 'max-h-96' : 'max-h-0'}`}>
+                    <div className="space-y-2 text-sm pt-1 max-h-48 overflow-y-auto">
                         {brands.map(brand => (
                             <div key={brand.brand_id} className='flex items-center'>
                                 <input
@@ -205,7 +228,8 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
                                     id={`brand-${brand.brand_id}`}
                                     checked={isSelected('brand_id', brand.brand_id)}
                                     onChange={(e) => handleCustomFilterChange('brand_id', brand.brand_id, e.target.checked)}
-                                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    className="h-4 w-4 border-gray-300 rounded focus:ring-2"
+                                    style={{ color: PRIMARY_COLOR, accentColor: PRIMARY_COLOR }}
                                 />
                                 <label htmlFor={`brand-${brand.brand_id}`} className="ml-2 text-gray-700">{brand.brand_name}</label>
                             </div>
@@ -216,16 +240,19 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
 
             {/* --- Custom Dynamic Filters --- */}
             {filterTypes.map(type => (
-                <div key={type.id} className="pb-3 border-b border-gray-100">
+                <div key={type.id} className="pb-4 border-b border-gray-200">
                     <button 
                         type="button" 
-                        className="w-full flex justify-between items-center text-left font-semibold text-slate-800"
+                        className="w-full flex justify-between items-center text-left font-bold text-slate-800 text-lg"
                         onClick={() => setExpandedFilter(expandedFilter === type.id ? null : type.id)}
                     >
-                        {type.filter_type_name} ({type.items?.length || 0}) {expandedFilter === type.id ? <FaAngleUp /> : <FaAngleDown />}
+                         <span className='flex items-center'>
+                            <FaFilter className='mr-3 w-4 h-4' style={{ color: PRIMARY_COLOR }}/> {type.filter_type_name} ({type.items?.length || 0})
+                         </span>
+                        {expandedFilter === type.id ? <FaAngleUp /> : <FaAngleDown />}
                     </button>
-                    <div className={`mt-2 transition-all duration-300 overflow-hidden ${expandedFilter === type.id ? 'max-h-96' : 'max-h-0'}`}>
-                        <div className="space-y-1 text-sm pt-2 max-h-48 overflow-y-auto">
+                    <div className={`mt-3 transition-all duration-300 overflow-hidden ${expandedFilter === type.id ? 'max-h-96' : 'max-h-0'}`}>
+                        <div className="space-y-2 text-sm pt-1 max-h-48 overflow-y-auto">
                             {type.items?.map(item => (
                                 <div key={item.id} className='flex items-center'>
                                     <input
@@ -233,7 +260,8 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
                                         id={`filter-item-${item.id}`}
                                         checked={isSelected('filter_items', item.id)} 
                                         onChange={(e) => handleCustomFilterChange('filter_items', item.id, e.target.checked)}
-                                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                        className="h-4 w-4 border-gray-300 rounded focus:ring-2"
+                                        style={{ color: PRIMARY_COLOR, accentColor: PRIMARY_COLOR }}
                                     />
                                     <label htmlFor={`filter-item-${item.id}`} className="ml-2 text-gray-700">{item.filter_name}</label>
                                 </div>
@@ -266,7 +294,7 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
                 {/* Header (Mobile) */}
                 <div className="flex justify-between items-center p-4 border-b border-gray-200">
                     <h3 className="text-xl font-bold text-slate-800 flex items-center">
-                        <FaFilter className="mr-2 text-blue-500" /> Filters
+                        <FaFilter className="mr-2" style={{ color: PRIMARY_COLOR }}/> Filters
                     </h3>
                     <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-700 rounded-full">
                         <FaTimes className="w-5 h-5" />
@@ -283,14 +311,15 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
                     <button 
                         onClick={handleResetFilters}
                         disabled={loading}
-                        className="w-1/2 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        className="w-1/2 py-2 text-sm text-slate-700 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center font-semibold"
                     >
-                        Reset
+                         <FaRedo className='w-4 h-4 mr-1'/> Reset
                     </button>
                     <button 
                         onClick={handleApplyFilters}
                         disabled={loading}
-                        className="w-1/2 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                        className="w-1/2 py-2 text-sm text-white rounded-lg hover:opacity-90 disabled:bg-gray-400 font-semibold"
+                        style={{ backgroundColor: PRIMARY_COLOR }}
                     >
                         Apply Filters
                     </button>

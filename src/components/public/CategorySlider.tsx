@@ -8,13 +8,19 @@ import { useCategoryService } from '@/services/admin/categoryService';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../ui/LoadingSpinner';
 
+// Swiper imports
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Navigation } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/navigation';
+
 // --- Types ---
 interface CategorySliderProps {
     allCategories: RootCategory[]; 
     currentCategoryId: string | null | undefined; 
 }
 
-// --- Helpers ---
+// --- Helpers (Unchanged) ---
 
 // Helper function to find the current category object and its immediate children
 const findCategoryData = (
@@ -94,10 +100,15 @@ const findAllDescendantLeafIds = (category: RootCategory | SubCategory | undefin
 };
 
 
+// --- Component ---
+
 const CategorySlider: React.FC<CategorySliderProps> = ({ allCategories, currentCategoryId }) => {
     const { getStorageUrl } = useCategoryService(); // Use service for image URL resolution
     const router = useRouter();
-    const [sliderRef, setSliderRef] = useState<HTMLDivElement | null>(null);
+    // Removed: const [sliderRef, setSliderRef] = useState<HTMLDivElement | null>(null);
+
+    const [swiperInstance, setSwiperInstance] = useState<any>(null);
+    const sliderId = `category-swiper-${currentCategoryId || 'root'}`;
     
     // Determine the category whose children we need to display
     const { currentCategory, childrenToDisplay } = useMemo(() => {
@@ -111,17 +122,19 @@ const CategorySlider: React.FC<CategorySliderProps> = ({ allCategories, currentC
         return findAllDescendantLeafIds(currentCategory);
     }, [currentCategory]);
     
-    // Simple scroll functionality
-    const scroll = useCallback((direction: 'left' | 'right') => {
-        if (sliderRef) {
-            const itemWidth = 100 + 16; // Item width (w-24) + space-x-4 (16px)
-            sliderRef.scrollBy({
-                left: direction === 'left' ? -itemWidth * 3 : itemWidth * 3, // Scroll by a few items
-                behavior: 'smooth',
-            });
+    // Swiper scroll functions
+    const goNext = useCallback(() => {
+        if (swiperInstance) {
+            swiperInstance.slideNext();
         }
-    }, [sliderRef]);
+    }, [swiperInstance]);
 
+    const goPrev = useCallback(() => {
+        if (swiperInstance) {
+            swiperInstance.slidePrev();
+        }
+    }, [swiperInstance]);
+    
     const getCategoryImageUrl = useCallback((category: any): string | null => {
         const imageUrl = category.cat_image || category.sub_cat_image || null;
         return getStorageUrl(imageUrl);
@@ -131,26 +144,18 @@ const CategorySlider: React.FC<CategorySliderProps> = ({ allCategories, currentC
         return null;
     }
     
-    // Check if the current category is a root category (for title styling/naming)
     const isRootCategory = 'cat_name' in currentCategory;
     const title = isRootCategory 
         ? `Shop ${currentCategory.cat_name}` 
         : `Explore ${currentCategory.sub_cat_name}`;
 
-    // NEW: Get the image URL for the current parent category ("View All" card)
     const currentCategoryImageUrl = getCategoryImageUrl(currentCategory); 
+
+    // Determine if navigation buttons should be shown. Show if there are more items than expected to fit on a mobile screen (5 items * w-24 + gaps)
+    const hasEnoughItemsToScroll = childrenToDisplay.length + 1 > 5; // +1 for the 'View All' card
 
     return (
         <div className="py-4 space-y-4">
-            <style jsx>{`
-                .hide-scrollbar::-webkit-scrollbar {
-                    display: none;
-                }
-                .hide-scrollbar {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
-                }
-            `}</style>
             
             {/* Title */}
             <h3 className="text-xl font-bold text-slate-700">
@@ -158,55 +163,71 @@ const CategorySlider: React.FC<CategorySliderProps> = ({ allCategories, currentC
             </h3>
 
             <div className="relative">
-                {/* Scroll Buttons (Desktop only) */}
-                {childrenToDisplay.length > 4 && (
+                
+                {/* Scroll Buttons (Now visible on all screens if hasEnoughItemsToScroll is true) */}
+                {hasEnoughItemsToScroll && (
                     <>
                         <button 
-                            onClick={(e) => { e.preventDefault(); scroll('left'); }}
-                            className="absolute left-0 top-1/2 transform -translate-y-1/2 p-2 bg-white rounded-full shadow-md z-10 hover:bg-gray-100 hidden lg:block"
+                            onClick={(e) => { e.preventDefault(); goPrev(); }}
+                            // FIX: Removed hidden lg:block to show on mobile
+                            className={`category-swiper-prev-${sliderId} absolute -left-4 top-1/2 transform -translate-y-1/2 p-2 bg-white rounded-full shadow-md z-10 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed`}
+                            aria-label="Previous categories"
                         >
                             <FaChevronLeft className="w-4 h-4" />
                         </button>
                         <button 
-                            onClick={(e) => { e.preventDefault(); scroll('right'); }}
-                            className="absolute right-0 top-1/2 transform -translate-y-1/2 p-2 bg-white rounded-full shadow-md z-10 hover:bg-gray-100 hidden lg:block"
+                            onClick={(e) => { e.preventDefault(); goNext(); }}
+                            // FIX: Removed hidden lg:block to show on mobile
+                            className={`category-swiper-next-${sliderId} absolute -right-4 top-1/2 transform -translate-y-1/2 p-2 bg-white rounded-full shadow-md z-10 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed`}
+                            aria-label="Next categories"
                         >
                             <FaChevronRight className="w-4 h-4" />
                         </button>
                     </>
                 )}
                 
-                {/* Category Item Slider */}
-                <div 
-                    ref={setSliderRef}
-                    className="flex space-x-4 overflow-x-auto py-2 hide-scrollbar"
+                {/* Category Item Slider (using Swiper) */}
+                <Swiper
+                    onSwiper={setSwiperInstance}
+                    modules={[Navigation]}
+                    spaceBetween={16} // space-x-4
+                    slidesPerView={'auto'} // Critical: allows slides to take content width (w-24)
+                    freeMode={true} // Allows free drag/swipe behavior
+                    watchOverflow={true} // Hides navigation if content fits
+                    // Configure navigation selectors using the unique ID
+                    navigation={{
+                        prevEl: `.category-swiper-prev-${sliderId}`,
+                        nextEl: `.category-swiper-next-${sliderId}`,
+                        disabledClass: 'opacity-50 cursor-not-allowed',
+                        enabled: hasEnoughItemsToScroll,
+                    }}
+                    className={`category-slider-swiper-${sliderId}`}
                 >
                     
                     {/* View All Products in This Category Branch */}
                     {currentCategory && allDescendantIds.length > 0 && (
-                        <Link 
-                            key={`${currentCategoryId}-all`} 
-                            // Send all descendant IDs as a CSV list to the product listing page
-                            href={`/products?sub_category_ids=${allDescendantIds.join(',')}`} 
-                            // 💡 STYLING CHANGE: Use flex-col for vertical layout, w-24 for fixed width
-                            className="flex-shrink-0 w-24 flex flex-col items-center justify-start text-center text-blue-700"
-                        >
-                            {/* 💡 STYLING CHANGE: Apply round styling to the image container */}
-                            <div className="w-24 h-24 border-2 border-blue-500 rounded-full shadow-lg hover:shadow-xl transition-shadow bg-blue-50 flex items-center justify-center mb-1">
-                                {currentCategoryImageUrl ? (
-                                    <img 
-                                        src={currentCategoryImageUrl} 
-                                        alt={title} 
-                                        className="w-full h-full object-cover rounded-full p-1" // Use p-1 to keep border visible
-                                    />
-                                ) : (
-                                    <FaFolder className="w-10 h-10" />
-                                )}
-                            </div>
-                            <span className="text-sm font-bold line-clamp-2 mt-1">
-                                View All {isRootCategory ? currentCategory.cat_name : currentCategory.sub_cat_name}
-                            </span>
-                        </Link>
+                        <SwiperSlide className="!w-24"> {/* !w-24 overrides Swiper's default width */}
+                            <Link 
+                                key={`${currentCategoryId}-all`} 
+                                href={`/products?sub_category_ids=${allDescendantIds.join(',')}`} 
+                                className="flex-shrink-0 w-full h-full flex flex-col items-center justify-start text-center text-blue-700"
+                            >
+                                <div className="w-24 h-24 border-2 border-blue-500 rounded-full shadow-lg hover:shadow-xl transition-shadow bg-blue-50 flex items-center justify-center mb-1">
+                                    {currentCategoryImageUrl ? (
+                                        <img 
+                                            src={currentCategoryImageUrl} 
+                                            alt={title} 
+                                            className="w-full h-full object-cover rounded-full p-1" // Use p-1 to keep border visible
+                                        />
+                                    ) : (
+                                        <FaFolder className="w-10 h-10" />
+                                    )}
+                                </div>
+                                <span className="text-sm font-bold line-clamp-2 mt-1">
+                                    View All {isRootCategory ? currentCategory.cat_name : currentCategory.sub_cat_name}
+                                </span>
+                            </Link>
+                        </SwiperSlide>
                     )}
 
 
@@ -217,32 +238,30 @@ const CategorySlider: React.FC<CategorySliderProps> = ({ allCategories, currentC
                         const imageUrl = getCategoryImageUrl(child);
                         
                         return (
-                            <Link 
-                                key={childId} 
-                                // On click, update URL to filter products by this new category ID
-                                href={`/products?category_id=${childId}`}
-                                // 💡 STYLING CHANGE: Use flex-col for vertical layout, w-24 for fixed width
-                                className="flex-shrink-0 w-24 flex flex-col items-center justify-start text-center"
-                            >
-                                {/* 💡 STYLING CHANGE: Apply round styling to the image container */}
-                                <div className="w-24 h-24 border border-gray-300 rounded-full shadow-sm hover:shadow-lg transition-shadow bg-white flex items-center justify-center mb-1">
-                                    {imageUrl ? (
-                                        <img 
-                                            src={imageUrl} 
-                                            alt={childName} 
-                                            className="w-full h-full object-cover rounded-full p-1" // Use p-1 to keep border visible
-                                        />
-                                    ) : (
-                                        <FaImage className="w-10 h-10 text-gray-400" />
-                                    )}
-                                </div>
-                                <span className="text-sm font-medium text-slate-700 line-clamp-2 mt-1">
-                                    {childName}
-                                </span>
-                            </Link>
+                            <SwiperSlide key={childId} className="!w-24">
+                                <Link 
+                                    href={`/products?category_id=${childId}`}
+                                    className="flex-shrink-0 w-full h-full flex flex-col items-center justify-start text-center"
+                                >
+                                    <div className="w-24 h-24 border border-gray-300 rounded-full shadow-sm hover:shadow-lg transition-shadow bg-white flex items-center justify-center mb-1">
+                                        {imageUrl ? (
+                                            <img 
+                                                src={imageUrl} 
+                                                alt={childName} 
+                                                className="w-full h-full object-cover rounded-full p-1" // Use p-1 to keep border visible
+                                            />
+                                        ) : (
+                                            <FaImage className="w-10 h-10 text-gray-400" />
+                                        )}
+                                    </div>
+                                    <span className="text-sm font-medium text-slate-700 line-clamp-2 mt-1">
+                                        {childName}
+                                    </span>
+                                </Link>
+                            </SwiperSlide>
                         );
                     })}
-                </div>
+                </Swiper>
             </div>
         </div>
     );

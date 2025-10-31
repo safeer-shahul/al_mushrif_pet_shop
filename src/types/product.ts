@@ -49,6 +49,9 @@ export interface Product {
     can_replace: boolean;
     product_filters: ProductFilters | null;
     
+    // ✨ NEW FIELD
+    description: string | null; // Rich HTML description
+    
     base_price: number | null; 
     base_offer_price: number | null;
     base_quantity: number | null; 
@@ -57,7 +60,7 @@ export interface Product {
     has_variants: boolean;
     
     // Add these new properties
-    is_disabled?: boolean;    
+    is_disabled?: boolean;      
     quantity?: number;
     
     created_at: string;
@@ -68,14 +71,3 @@ export interface Product {
     category?: SubCategory;
     brand?: Brand;
 }
-
-// --------------------------------------------------
-// 3. Category Type Update (for path display in ProductForm)
-// --------------------------------------------------
-// Assuming your SubCategory type can hold ancestral information (either directly or via parent_id lookup)
-// Add these to SubCategory if they are not already present in your original type definition:
-// export interface SubCategory extends BaseCategory {
-//     parent_id: string | null;
-//     // For convenience, let's assume the API returns the full path as an array:
-//     // ancestry_names?: string[]; 
-// }

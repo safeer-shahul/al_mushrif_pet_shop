@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { FaFilter, FaList, FaAngleRight, FaSpinner } from 'react-icons/fa';
+import { FaFilter, FaList, FaAngleRight, FaSpinner, FaSort } from 'react-icons/fa';
 import { usePublicProductService, ProductQueryParams } from '@/services/public/productService';
 import { useCategoryService } from '@/services/admin/categoryService';
 import { RootCategory } from '@/types/category';
@@ -11,6 +11,9 @@ import ProductCard from '@/components/public/products/ProductCard';
 import ProductFilterDrawer from '@/components/public/ProductFilterDrawer';
 import CategorySlider from '@/components/public/CategorySlider';
 import { useCart } from '@/context/CartContext';
+
+// Define the primary color variable for easy styling consistency
+const PRIMARY_COLOR = 'var(--color-primary, #FF6B35)';
 
 // --- Main Product Listing Page ---
 const ProductListingPage: React.FC = () => {
@@ -47,11 +50,10 @@ const ProductListingPage: React.FC = () => {
             ) as ProductQueryParams;
 
             const [productData, categoryData] = await Promise.all([
-                fetchProducts(validFilters), // <--- Triggers the API call to port 8000
+                fetchProducts(validFilters),
                 fetchAllRootCategories()
             ]);
             setProductsData(productData);
-            console.log(categoryData,'categoryData')
             setAllCategories(categoryData);
         } catch (err: any) {
             setApiError(err.message || 'Failed to load products or category structure.');
@@ -72,7 +74,6 @@ const ProductListingPage: React.FC = () => {
         const newSort = searchParams.get('sort');
 
         setCurrentFilters(prev => {
-            // Only force an update if one of the key URL params changed
             if (newCategoryId !== prev.category_id || 
                 newBrandId !== prev.brand_id ||
                 newOfferId !== prev.offer_id ||
@@ -86,19 +87,19 @@ const ProductListingPage: React.FC = () => {
                     offer_id: newOfferId || undefined,
                     search: newSearch || undefined,
                     sort: newSort || 'latest',
-                    page: 1, // Reset to page 1 on new filter/category navigation
+                    page: 1, 
                 };
             }
             return prev;
         });
 
-    }, [searchParams]); // Depend only on searchParams changes
+    }, [searchParams]); 
     
     
     // 💡 FIX 2: Trigger data fetch only when currentFilters state changes
     useEffect(() => {
         loadData(currentFilters);
-    }, [currentFilters, loadData]); // loadData is stable, so this only runs when currentFilters changes
+    }, [currentFilters, loadData]); 
 
 
     // --- Filter Handler (Used by Filter Drawer/Sort Dropdown) ---
@@ -112,8 +113,9 @@ const ProductListingPage: React.FC = () => {
     
     // --- Title Logic ---
     const getActiveTitle = () => {
-        if (currentFilters.offer_id) return 'Offers';
-        if (currentFilters.brand_id) return 'Brands';
+        if (currentFilters.search) return `Search Results for "${currentFilters.search}"`;
+        if (currentFilters.offer_id) return 'Special Offers';
+        if (currentFilters.brand_id) return 'Shop by Brand';
         if (currentFilters.category_id) {
             return 'Shop Categories';
         }
@@ -123,9 +125,11 @@ const ProductListingPage: React.FC = () => {
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold text-slate-800 mb-6">
+            <h1 className="text-3xl font-extrabold text-slate-800 mb-6" style={{ color: PRIMARY_COLOR }}>
                 {getActiveTitle()}
             </h1>
+            
+            {apiError && <div className="p-3 bg-red-100 text-red-700 rounded-lg mb-4">{apiError}</div>}
 
             {/* Category Slider */}
             {currentFilters.category_id && (
@@ -139,59 +143,68 @@ const ProductListingPage: React.FC = () => {
             {/* END CATEGORY SLIDER */}
 
 
-            <div className="grid grid-cols-12 gap-8">
+            <div className="space-y-6">
                 
-                <div className='col-span-12'>
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className='text-xl font-semibold text-slate-700'>
-                            {productsData?.total || 0} Products Found
-                        </h2>
+                {/* Product Count & Controls (NEW LAYOUT) */}
+                <div className='flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-gray-50 border border-gray-200 rounded-xl shadow-sm'>
+                    <h2 className='text-lg font-semibold text-slate-700 mb-3 sm:mb-0'>
+                        {loading ? <FaSpinner className='animate-spin inline mr-2 text-gray-500' /> : 
+                        <span>{productsData?.total || 0} Products Found</span>}
+                    </h2>
+                    
+                    {/* Filter/Sort Controls Group - Always visible, but stacked on mobile */}
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
                         
-                        {/* Filter/Sort Controls Group */}
-                        <div className="flex items-center space-x-4">
-                            {/* Mobile Filter Button */}
-                            <button 
-                                onClick={() => setIsDrawerOpen(true)}
-                                className="py-2 px-4 bg-gray-100 border border-gray-300 rounded-lg flex items-center justify-center text-slate-700 text-sm font-medium hover:bg-gray-200"
+                        {/* 1. Mobile Filter Button (Styled with PRIMARY_COLOR) */}
+                        <button 
+                            onClick={() => setIsDrawerOpen(true)}
+                            className="py-2 px-4 border rounded-lg flex items-center justify-center text-sm font-semibold transition-colors shadow-sm"
+                            style={{ 
+                                backgroundColor: PRIMARY_COLOR, 
+                                color: 'white',
+                                borderColor: PRIMARY_COLOR
+                            }}
+                        >
+                            <FaFilter className="mr-2" /> Show Filters
+                        </button>
+                        
+                        {/* 2. Sorting Dropdown */}
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                            <FaSort className='w-4 h-4 text-gray-500' />
+                            <label htmlFor='sort-select' className='text-sm text-gray-600 font-medium'>Sort By:</label>
+                            <select 
+                                id='sort-select'
+                                onChange={(e) => handleFilterChange({ sort: e.target.value })}
+                                value={currentFilters.sort || 'latest'}
+                                className='text-sm border border-gray-300 rounded-lg py-2 px-2 focus:border-blue-500 focus:ring-blue-500'
                             >
-                                <FaFilter className="mr-2" /> Filters
-                            </button>
-                            
-                            {/* Sorting Dropdown */}
-                            <div className="flex items-center space-x-2">
-                                <label className='text-sm text-gray-600'>Sort By:</label>
-                                <select 
-                                    onChange={(e) => handleFilterChange({ sort: e.target.value })}
-                                    value={currentFilters.sort || 'latest'}
-                                    className='text-sm border border-gray-300 rounded-lg'
-                                >
-                                    <option value="latest">Latest</option>
-                                    <option value="price_asc">Price: Low to High</option>
-                                    <option value="price_desc">Price: High to Low</option>
-                                </select>
-                            </div>
+                                <option value="latest">Latest</option>
+                                <option value="price_asc">Price: Low to High</option>
+                                <option value="price_desc">Price: High to Low</option>
+                            </select>
                         </div>
                     </div>
                 </div>
 
 
-                {/* Product Grid - Full Width */}
-                <section className="col-span-12"> 
+                {/* Product Grid */}
+                <section> 
                     
                     {loading ? (
                         <LoadingSpinner />
                     ) : productsData && productsData.data.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
                             {productsData.data.map((product: any) => (
                                 <ProductCard key={product.id} product={product} /> 
                             ))}
                         </div>
                     ) : (
-                        <div className="p-10 bg-white rounded-xl shadow-lg text-center text-slate-500">
-                            No products match your current selection.
+                        <div className="p-10 bg-white rounded-xl shadow-lg text-center text-slate-500 border border-dashed border-gray-300">
+                            <p className='text-lg font-medium'>No products match your current selection.</p>
+                            <p className='text-sm mt-2'>Try clearing some filters or changing your search term.</p>
                         </div>
                     )}
-                    {/* Pagination (TBD) */}
+                    {/* Pagination component would go here */}
                 </section>
             </div>
             

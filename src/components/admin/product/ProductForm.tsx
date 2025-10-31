@@ -1,15 +1,74 @@
+// src/components/admin/product/ProductForm.tsx
 
-'use client';
-
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaSave, FaInfoCircle, FaDollarSign, FaTags, FaBox, FaFolderOpen } from 'react-icons/fa';
+import dynamic from 'next/dynamic';
+
 import { Product, ProductFilters, ProductImage } from '@/types/product';
 import { Brand } from '@/types/brand';
-import { RootCategory, SubCategory } from '@/types/category'; 
+import { RootCategory, SubCategory } from '@/types/category';
 import { FilterType } from '@/types/filter';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ProductImageManager from './ProductImageManager';
+
+// ----------------------------------------------------------------------
+// 📝 RICH TEXT EDITOR IMPLEMENTATION (Using react-simple-wysiwyg)
+// ----------------------------------------------------------------------
+
+// Dynamic import for the simple editor, returning the whole module
+const SimpleEditorModules = dynamic(
+    () => import('react-simple-wysiwyg'),
+    {
+        ssr: false,
+        loading: () => <div className="p-4 border border-gray-200 rounded-lg text-sm text-gray-500">Loading editor...</div>
+    }
+);
+
+interface WysiwygEditorProps {
+    value: string | null;
+    onChange: (html: string) => void;
+    placeholder?: string;
+    disabled: boolean;
+}
+
+const SimpleWysiwygEditor: React.FC<WysiwygEditorProps> = ({ value, onChange, placeholder, disabled }) => {
+    // Cast the dynamically imported module to 'any' to access its named exports safely
+    const modules: any = SimpleEditorModules;
+    // Ensure modules are loaded before attempting to access exports
+    if (!modules || !modules.EditorProvider || !modules.Editor) {
+        // Return placeholder or loading state if modules haven't loaded yet
+        return <div className="p-4 border border-gray-200 rounded-lg text-sm text-gray-500">Loading editor...</div>;
+    }
+
+    const EditorProvider = modules.EditorProvider;
+    const WysiwygEditor = modules.Editor;
+
+    // Use 'any' for the event type to bypass the incompatible type conflict
+    const handleSimpleEditorChange = (e: any) => {
+        onChange(e.target.value);
+    }
+
+    return (
+        <div className={disabled ? 'opacity-60 pointer-events-none' : ''}>
+            {/* FIX: Wrap the Editor component inside the required EditorProvider */}
+            <EditorProvider>
+                <WysiwygEditor
+                    value={value || ''}
+                    onChange={handleSimpleEditorChange}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                    // Setting a fixed height for visual consistency
+                    containerProps={{ style: { height: '400px' } }}
+                />
+            </EditorProvider>
+        </div>
+    );
+};
+// ----------------------------------------------------------------------
+// END WYSIWYG EDITOR COMPONENT
+// ----------------------------------------------------------------------
+
 
 interface ProductFormProps {
     initialData?: Partial<Product>;
@@ -17,15 +76,12 @@ interface ProductFormProps {
     onSave: (data: Partial<Product>, id?: string) => Promise<void>;
     isLoading: boolean;
     error: string | null;
-    
     allBrands: Brand[];
-    allSubCategories: SubCategory[]; 
+    allSubCategories: SubCategory[];
     allFilterTypes: FilterType[];
-    allRootCategories: RootCategory[]; 
-    
+    allRootCategories: RootCategory[];
     dependenciesLoading: boolean;
     dependenciesError: string | null;
-    
     onFullDataRefresh: () => void;
 }
 
@@ -35,23 +91,18 @@ interface ProductFormProps {
 interface FlatCategory {
     id: string;
     name: string;
-    path: string; // The full display path (e.g., Cat > Food & Treats > Dry Food)
-    depth: number; // Track how deep in the hierarchy this category is
+    path: string;
+    depth: number;
 }
 
-// Interface for grouped categories
 interface GroupedCategoriesType {
     [key: string]: FlatCategory[];
 }
 
 const flattenCategories = (rootCats: RootCategory[]): FlatCategory[] => {
     const flatList: FlatCategory[] = [];
-    
-    console.log('Root Categories for flattening:', rootCats);
 
-    // Helper function to get children regardless of property name
     const getChildren = (category: any): any[] => {
-        // Check all possible property names for children
         if (category.sub_categories && Array.isArray(category.sub_categories)) {
             return category.sub_categories;
         }
@@ -65,20 +116,11 @@ const flattenCategories = (rootCats: RootCategory[]): FlatCategory[] => {
     };
 
     const traverse = (category: any, path: string[], depth: number) => {
-        // Get the current category name based on available properties
         const categoryName = category.cat_name || category.sub_cat_name || "Unknown";
         const currentPath = [...path, categoryName];
-        
-        // Determine if this is a root category (has cat_name)
         const isRoot = Boolean(category.cat_name);
-        
-        // Get children using helper
         const children = getChildren(category);
-
-        // Check if this is a leaf node (no children or empty children array)
         const isLeaf = children.length === 0;
-        
-        // Only add leaf nodes that aren't root categories
         if (isLeaf && !isRoot) {
             flatList.push({
                 id: category.id,
@@ -88,36 +130,28 @@ const flattenCategories = (rootCats: RootCategory[]): FlatCategory[] => {
             });
         }
 
-        console.log(flatList, 'flatList after checking', category.id);
-
-        // Traverse children if they exist
         children.forEach(child => {
             traverse(child, currentPath, depth + 1);
         });
     };
 
-    // Start traversal from each root category
     rootCats.forEach(root => {
         traverse(root, [], 0);
     });
-    
-    console.log('Final flatList:', flatList);
-    
-    // Sort by path for consistent ordering
     return flatList.sort((a, b) => a.path.localeCompare(b.path));
 };
 
 
-const ProductForm: React.FC<ProductFormProps> = ({ 
-    initialData, 
-    isEditMode, 
-    onSave, 
-    isLoading, 
+const ProductForm: React.FC<ProductFormProps> = ({
+    initialData,
+    isEditMode,
+    onSave,
+    isLoading,
     error,
     allBrands,
-    allSubCategories, 
+    allSubCategories,
     allFilterTypes,
-    allRootCategories, 
+    allRootCategories,
     dependenciesLoading,
     dependenciesError,
     onFullDataRefresh
@@ -128,53 +162,46 @@ const ProductForm: React.FC<ProductFormProps> = ({
         can_return: true,
         can_replace: true,
         product_filters: {},
+        description: null,
         base_price: null,
         base_offer_price: null,
         base_quantity: null,
         has_variants: false,
-    }); 
+    });
     const [localLoading, setLocalLoading] = useState(false);
     const [baseImages, setBaseImages] = useState<ProductImage[]>(initialData?.images || []);
-    
-    // Generate flattened categories list with proper paths
     const flatSubCategories = useMemo(() => {
         return flattenCategories(allRootCategories);
     }, [allRootCategories]);
-    
-    // Group categories by their top-level parent for dropdown organization
     const groupedCategories = useMemo<GroupedCategoriesType>(() => {
         const groups: GroupedCategoriesType = {};
-        
         flatSubCategories.forEach(cat => {
             const parts = cat.path.split(' > ');
-            const topParent = parts[0]; // Get the top-level category
-            
+            const topParent = parts[0];
             if (!groups[topParent]) {
                 groups[topParent] = [];
             }
-            
             groups[topParent].push(cat);
         });
-        
         return groups;
     }, [flatSubCategories]);
+
 
     const hasVariants = formData.has_variants || false;
     const isDisabled = isLoading || localLoading || dependenciesLoading;
 
-    // Effect to set initial form data
     useEffect(() => {
         const updatedFormData = {
             ...initialData,
             product_filters: initialData?.product_filters || {},
             can_return: initialData?.can_return ?? true,
             can_replace: initialData?.can_replace ?? true,
+            description: initialData?.description ?? null,
             base_price: initialData?.base_price ?? null,
             base_offer_price: initialData?.base_offer_price ?? null,
             base_quantity: initialData?.base_quantity ?? null,
             has_variants: initialData?.has_variants ?? (isEditMode && (initialData?.variants?.length ?? 0) > 0)
         };
-        
         setFormData(updatedFormData);
         setBaseImages(initialData?.images || []);
     }, [initialData, isEditMode]);
@@ -182,7 +209,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type, checked } = e.target as HTMLInputElement;
-        
         if (type === 'checkbox') {
             setFormData(prev => ({ ...prev, [name]: checked }));
         } else if (name.includes('price') || name.includes('quantity')) {
@@ -192,8 +218,10 @@ const ProductForm: React.FC<ProductFormProps> = ({
             setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
-    
-    // Logic for handling filters
+    const handleDescriptionChange = useCallback((html: string) => {
+        setFormData(prev => ({ ...prev, description: html }));
+    }, []);
+
     const handleFilterChange = useCallback((filterTypeId: string, itemId: string, isChecked: boolean) => {
         setFormData(prev => {
             const currentFilters: ProductFilters = prev.product_filters || {};
@@ -209,7 +237,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
             if (newFilters[filterTypeId].length === 0) {
                 delete newFilters[filterTypeId];
             }
-            
             return { ...prev, product_filters: newFilters };
         });
     }, []);
@@ -218,7 +245,15 @@ const ProductForm: React.FC<ProductFormProps> = ({
         e.preventDefault();
         setLocalLoading(true);
         try {
-            await onSave(formData, formData.id);
+            const dataToSave = {
+                ...formData,
+                // 1. Convert the object to a JSON string for the API payload
+                product_filters: JSON.stringify(formData.product_filters),
+            };
+
+            // 2. Use a double assertion: Cast to 'unknown' first, then to the target type,
+            // to resolve the TypeScript incompatibility between string and ProductFilters.
+            await onSave(dataToSave as unknown as Partial<Product>, formData.id);
             onFullDataRefresh();
         } catch (e) {
             console.error(e);
@@ -226,7 +261,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
             setLocalLoading(false);
         }
     };
-    
 
     if (dependenciesLoading) {
         return <LoadingSpinner />;
@@ -234,7 +268,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
     return (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            
             {/* Form Header */}
             <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-gray-50 border-b border-gray-200">
                 <h2 className="text-xl font-semibold text-slate-800">
@@ -254,7 +287,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
             {/* Form Content */}
             <div className="p-6 space-y-8">
-                
                 {/* Product Name and ID */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -264,8 +296,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         <input
                             id="prod_name"
                             type="text"
-                            name="prod_name" 
-                            value={formData.prod_name || ''} 
+                            name="prod_name"
+                            value={formData.prod_name || ''}
                             onChange={handleChange}
                             required
                             placeholder="e.g., Cat Scratch Post - Deluxe Edition"
@@ -273,7 +305,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                             disabled={isDisabled}
                         />
                     </div>
-                    
                     <div className="space-y-2">
                         <label htmlFor="prod_id" className="block text-sm font-medium text-slate-700">
                             Product ID (SKU) <span className="text-red-500">*</span>
@@ -281,8 +312,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         <input
                             id="prod_id"
                             type="text"
-                            name="prod_id" 
-                            value={formData.prod_id || ''} 
+                            name="prod_id"
+                            value={formData.prod_id || ''}
                             onChange={handleChange}
                             required
                             placeholder="e.g., CAT-SCRT-001"
@@ -294,7 +325,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
                 {/* Categories and Brands */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Enhanced Category Dropdown */}
                     <div className="space-y-2">
                         <label htmlFor="sub_cat_id" className="block text-sm font-medium text-slate-700">
                             Category (Leaf Node) <span className="text-red-500">*</span>
@@ -310,11 +340,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                 required
                             >
                                 <option value="">-- Select Final Sub Category --</option>
-                                
                                 {Object.keys(groupedCategories).length === 0 ? (
                                     <option disabled value="">No categories found. Please check your data.</option>
                                 ) : (
-                                    // Render options grouped by top-level category
                                     Object.entries(groupedCategories).map(([parentName, categories]) => (
                                         <optgroup key={parentName} label={parentName}>
                                             {categories.map((cat) => (
@@ -327,7 +355,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                 )}
                             </select>
                             <p className="text-xs text-gray-500 mt-1 flex items-center">
-                                <FaFolderOpen className='mr-1' /> 
+                                <FaFolderOpen className='mr-1' />
                                 Select the lowest level category. Each option shows the full category path.
                             </p>
                         </div>
@@ -356,6 +384,21 @@ const ProductForm: React.FC<ProductFormProps> = ({
                     </div>
                 </div>
 
+                {/* Product Description Section with Simple WYSIWYG */}
+                <div className="pt-4 border-t border-gray-100">
+                    <div className="space-y-2">
+                        <label htmlFor="description" className="block text-sm font-medium text-slate-700 flex items-center">
+                            Product Description (Rich Text)
+                            <FaInfoCircle className="ml-2 w-4 h-4 text-gray-400" title="Enter a detailed description, supports rich text formatting." />
+                        </label>
+                        <SimpleWysiwygEditor
+                            value={formData.description || ''}
+                            onChange={handleDescriptionChange}
+                            placeholder="Enter a detailed, rich-text product description..."
+                            disabled={isDisabled}
+                        />
+                    </div>
+                </div>
                 {/* Variant Mode Toggle */}
                 <div className="pt-4 border-t border-gray-100">
                     <div className="flex items-center space-x-3">
@@ -370,7 +413,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         />
                         <label htmlFor="has_variants" className="block text-md font-medium text-slate-700 flex items-center">
                             <FaTags className="mr-2 text-blue-500" />
-                            This product will have variants
+                            **This product will have variants**
                             {isEditMode && (initialData?.variants?.length ?? 0) > 0 && (
                                 <span className="ml-2 text-sm text-orange-600 font-normal">
                                     (Can't change: variants already exist)
@@ -379,24 +422,20 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         </label>
                     </div>
                     <p className="text-sm text-gray-500 mt-1 ml-8">
-                        {hasVariants 
-                            ? "Product variants allow different prices, colors, and images. Save the product first to add variants." 
+                        {hasVariants
+                            ? "Product variants allow different prices, colors, and images. Save the product first to add variants."
                             : "Single product without variants. You can add base price and inventory below."}
                     </p>
                 </div>
 
-                {/* Base Pricing, Quantity, and Images Section (Only show if not using variants) */}
+                {/* Base Pricing, Quantity, and Images Section */}
                 {!hasVariants && (
                     <div className="pt-4 border-t border-gray-100 space-y-6">
                         <h3 className="text-md font-semibold text-slate-800 flex items-center">
                             <FaBox className="mr-2 text-blue-500" />
                             Base Product Details
                         </h3>
-                        
-                        {/* Pricing and Quantity Inputs */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            
-                            {/* Base Price */}
                             <div className="space-y-2">
                                 <label htmlFor="base_price" className="block text-sm font-medium text-slate-700">
                                     Base Price (AED) <span className="text-red-500">*</span>
@@ -407,8 +446,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                         id="base_price"
                                         type="number"
                                         step="0.01"
-                                        name="base_price" 
-                                        value={formData.base_price ?? ''} 
+                                        name="base_price"
+                                        value={formData.base_price ?? ''}
                                         onChange={handleChange}
                                         placeholder="0.00"
                                         required={!hasVariants}
@@ -417,8 +456,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                     />
                                 </div>
                             </div>
-                            
-                            {/* Base Offer Price */}
                             <div className="space-y-2">
                                 <label htmlFor="base_offer_price" className="block text-sm font-medium text-slate-700">
                                     Base Offer Price (Optional)
@@ -429,8 +466,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                         id="base_offer_price"
                                         type="number"
                                         step="0.01"
-                                        name="base_offer_price" 
-                                        value={formData.base_offer_price ?? ''} 
+                                        name="base_offer_price"
+                                        value={formData.base_offer_price ?? ''}
                                         onChange={handleChange}
                                         placeholder="0.00"
                                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all pl-10"
@@ -439,7 +476,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                 </div>
                             </div>
 
-                            {/* Base Quantity */}
                             <div className="space-y-2">
                                 <label htmlFor="base_quantity" className="block text-sm font-medium text-slate-700">
                                     Stock Quantity <span className="text-red-500">*</span>
@@ -449,8 +485,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                         id="base_quantity"
                                         type="number"
                                         step="1"
-                                        name="base_quantity" 
-                                        value={formData.base_quantity ?? ''} 
+                                        name="base_quantity"
+                                        value={formData.base_quantity ?? ''}
                                         onChange={handleChange}
                                         placeholder="0"
                                         required={!hasVariants}
@@ -461,7 +497,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                             </div>
                         </div>
 
-                        {/* Base Image Manager */}
                         {isEditMode && formData.id ? (
                             <ProductImageManager
                                 parentId={formData.id}
@@ -489,12 +524,12 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 {/* Filter Selector Section */}
                 <div className="pt-4 border-t border-gray-100">
                     <h3 className="text-md font-semibold text-slate-800 mb-3 flex items-center">
-                        Product Filters
-                        <FaInfoCircle className="ml-2 w-4 h-4 text-gray-400" title="Select filter items that apply to this product. This will be used for customer browsing." />
+                        **Product Filters**
+                        <FaInfoCircle className="ml-2 w-4 h-4 text-gray-400" title="Select filter items that apply to this product." />
                     </h3>
 
                     {allFilterTypes.length === 0 ? (
-                        <p className="text-sm text-gray-500 italic">No filter types have been configured yet. Please configure them first.</p>
+                        <p className="text-sm text-gray-500 italic">No filter types configured yet.</p>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             {allFilterTypes.map(type => (
@@ -530,7 +565,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                     )}
                 </div>
             </div>
-            
             {/* Form Footer */}
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
                 <button
@@ -546,14 +580,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
                     disabled={isDisabled}
                     className={`
                         px-4 py-2 rounded-lg text-white font-medium flex items-center
-                        ${isDisabled 
-                            ? 'bg-gray-400 cursor-not-allowed' 
+                        ${isDisabled
+                            ? 'bg-gray-400 cursor-not-allowed'
                             : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-sm'}
                     `}
                 >
                     <FaSave className="w-4 h-4 mr-2" />
-                    {isEditMode 
-                        ? (localLoading ? 'Updating...' : 'Update Product') 
+                    {isEditMode
+                        ? (localLoading ? 'Updating...' : 'Update Product')
                         : (localLoading ? 'Creating...' : 'Create Product')
                     }
                 </button>

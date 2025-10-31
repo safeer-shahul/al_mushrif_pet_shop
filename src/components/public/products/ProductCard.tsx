@@ -200,7 +200,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     return (
         <Link href={`/product/${product.id}`} passHref>
             <div 
-                className="relative bg-white rounded-lg min-h-90 md:min-h-112 overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col h-full group"
+                className="relative bg-white rounded-lg min-h-86 md:min-h-112 overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col h-full group"
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >

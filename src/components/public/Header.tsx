@@ -17,7 +17,7 @@ const STATIC_MENU_ITEMS = [
     { name: 'OUR BRANDS', href: '/brands' },
     { name: 'OFFER ZONE', href: '/products?offer_id=all' },
     { name: 'NEW ARRIVALS', href: '/products?sort=latest' },
-    { name: 'SERVICES', href: '/services' },
+    // { name: 'SERVICES', href: '/services' },
 ];
 
 const Header: React.FC = () => {

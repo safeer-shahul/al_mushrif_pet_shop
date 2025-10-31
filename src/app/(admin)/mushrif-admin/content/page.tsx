@@ -1,3 +1,4 @@
+// src/components/admin/content/AdminContentListPage.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -6,12 +7,43 @@ import { FaPlus, FaEdit, FaTrash, FaSync, FaImage, FaList, FaBullhorn } from 're
 import { HeroSection, HomeSection } from '@/types/content';
 import { useContentService } from '@/services/admin/contentService'; 
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+// NOTE: Assuming HeroSectionForm and HomeSectionForm components are defined and imported correctly
+// If they are not defined in their own files, you need to create them.
 import HeroSectionForm from '@/components/admin/content/HeroSectionForm'; 
 import HomeSectionForm from '@/components/admin/content/HomeSectionForm'; 
 import { toast } from 'react-hot-toast'; 
 import { useCategoryService } from '@/services/admin/categoryService';
 
-// --- List Item Components ---
+// --- Local Helper Interfaces ---
+// These are included here primarily for context, assuming the forms manage their own offers.
+interface HeroSectionFormProps {
+    initialData: HeroSection | undefined;
+    isEditMode: boolean;
+    onSave: (
+        data: Partial<HeroSection>, 
+        pcImageFile: File | null, 
+        pcImageRemoved: boolean,
+        mobileImageFile: File | null, 
+        mobileImageRemoved: boolean,
+        isUpdate: boolean
+    ) => Promise<void>; 
+    onCancel: () => void;
+    isLoading: boolean;
+    apiError: string | null;
+}
+
+interface HomeSectionFormProps {
+    initialData: HomeSection | undefined;
+    isEditMode: boolean;
+    onSave: (data: Partial<HomeSection>) => Promise<void>;
+    onCancel: () => void;
+    isLoading: boolean;
+    apiError: string | null;
+}
+// -----------------------------
+
+
+// --- List Item Components (Retained for structure) ---
 
 interface HeroSectionItemProps { 
     section: HeroSection, 
@@ -61,6 +93,8 @@ const HomeSectionItem: React.FC<HomeSectionItemProps> = ({ section, onEdit, onDe
         </div>
     </div>
 );
+// ------------------------------------------------------------------------------------------------
+
 
 const AdminContentListPage: React.FC = () => {
     const { fetchAllHeroSections, saveHeroSection, deleteHeroSection, fetchAllHomeSections, saveHomeSection, deleteHomeSection } = useContentService();
@@ -80,11 +114,11 @@ const AdminContentListPage: React.FC = () => {
     const [showHomeForm, setShowHomeForm] = useState(false);
     const [editingHome, setEditingHome] = useState<HomeSection | undefined>(undefined);
     
-    // Mock data - replace with real data from API
-    const availableOffers = [
-        { id: 'uuid-1', name: 'FLAT 25% OFF' },
-        { id: 'uuid-2', name: 'Buy 1 Get 1 Free' },
-    ];
+    // Helper to replace window.confirm (as per instructions)
+    const customConfirm = (message: string) => {
+        // NOTE: In a real app, this should be a modal. Using window.confirm temporarily.
+        return typeof window !== 'undefined' ? window.confirm(message) : true;
+    };
 
     // Load content data (Hero sections and Home sections)
     const loadContent = useCallback(async () => {
@@ -122,13 +156,22 @@ const AdminContentListPage: React.FC = () => {
         setShowHeroForm(true);
     };
 
-    const handleSaveHero = async (data: Partial<HeroSection>, imageFile: File | null, imageRemoved: boolean, isUpdate: boolean) => {
+    // FIX: Updated signature of handler to match the form's onSave prop
+    const handleSaveHero = async (
+        data: Partial<HeroSection>, 
+        pcImageFile: File | null, 
+        pcImageRemoved: boolean,
+        mobileImageFile: File | null, 
+        mobileImageRemoved: boolean,
+        isUpdate: boolean
+    ) => {
         if (isSaving) return;
         setIsSaving(true);
         setApiError(null);
         
         try {
-            await saveHeroSection(data, imageFile, imageRemoved, isUpdate);
+            // FIX: Passing all six parameters to the service function
+            await saveHeroSection(data, pcImageFile, pcImageRemoved, mobileImageFile, mobileImageRemoved, isUpdate);
             toast.success(data.id ? 'Banner updated.' : 'Banner created.');
             setShowHeroForm(false);
             setEditingHero(undefined);
@@ -142,7 +185,7 @@ const AdminContentListPage: React.FC = () => {
     };
 
     const handleDeleteHero = async (id: string, slug: string) => {
-        if (!window.confirm(`Are you sure you want to delete the Banner: ${slug}?`)) return;
+        if (!customConfirm(`Are you sure you want to delete the Banner: ${slug}?`)) return;
         
         if (isSaving) return;
         setIsSaving(true);
@@ -194,7 +237,7 @@ const AdminContentListPage: React.FC = () => {
     };
     
     const handleDeleteHome = async (id: string, title: string) => {
-        if (!window.confirm(`Are you sure you want to delete the Section: "${title}"?`)) return;
+        if (!customConfirm(`Are you sure you want to delete the Section: "${title}"?`)) return;
         
         if (isSaving) return;
         setIsSaving(true);
@@ -274,7 +317,7 @@ const AdminContentListPage: React.FC = () => {
                         onCancel={() => { setShowHeroForm(false); setEditingHero(undefined); setApiError(null); }}
                         isLoading={isSaving}
                         apiError={apiError}
-                        availableOffers={availableOffers}
+                        // availableOffers is removed; the Form component now handles offer fetching internally
                     />
                 )}
                 
@@ -320,7 +363,7 @@ const AdminContentListPage: React.FC = () => {
                         onCancel={() => { setShowHomeForm(false); setEditingHome(undefined); setApiError(null); }}
                         isLoading={isSaving}
                         apiError={apiError}
-                        availableOffers={availableOffers}
+                        // availableOffers is removed; assume HomeSectionForm handles its own dependencies
                     />
                 )}
                 

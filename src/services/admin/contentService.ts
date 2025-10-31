@@ -36,8 +36,15 @@ export const useContentService = () => {
         }
     }, [getAdminClient]);
 
-    const saveHeroSection = useCallback(async (data: Partial<HeroSection>, imageFile: File | null, imageRemoved: boolean, isUpdate: boolean = false) => {
-        // Use a client configured for FormData (multipart)
+    const saveHeroSection = useCallback(async (
+        data: Partial<HeroSection>, 
+        pcImageFile: File | null, 
+        pcImageRemoved: boolean,
+        mobileImageFile: File | null, 
+        mobileImageRemoved: boolean,
+        isUpdate: boolean = false
+    ) => {
+        // Use client configured to omit Content-Type for correct FormData handling
         const api = createAuthenticatedClient(token as string, { omitContentType: true }); 
         await getCsrfToken();
         
@@ -46,33 +53,44 @@ export const useContentService = () => {
         // --- 1. Append Data Fields ---
         if (data.id) formData.append('id', data.id);
         
-        // Use empty string if null, as Laravel uses it for nullable string fields
+        // Ensure all required fields are included, even if null/empty
         formData.append('slug', data.slug || '');
-        formData.append('offer_id', data.offer_id || ''); // FIX: If empty/null, sends "" which Laravel casts to null
+        formData.append('offer_id', data.offer_id || '');
         formData.append('order_sequence', String(data.order_sequence || 0));
+        // Note: PHP expects '1' or '0' for boolean via FormData
         formData.append('is_active', data.is_active ? '1' : '0'); 
         
-        // --- 2. Handle Image File/Removal ---
-        if (imageFile) {
-            formData.append('image_file', imageFile); 
-        } else if (imageRemoved && isUpdate) {
-            formData.append('image_removed', 'true'); 
+        // --- 2. Handle PC/Desktop Image (Required) ---
+        if (pcImageFile) {
+            formData.append('pc_image_file', pcImageFile); 
+        } else if (pcImageRemoved && isUpdate) {
+            // Send flag if file was removed in an update operation
+            formData.append('pc_image_removed', 'true'); 
+        }
+        
+        // --- 3. Handle Mobile Image (Optional) ---
+        if (mobileImageFile) {
+            formData.append('mobile_image_file', mobileImageFile); 
+        } else if (mobileImageRemoved && isUpdate) {
+            // Send flag if file was removed in an update operation
+            formData.append('mobile_image_removed', 'true'); 
         }
 
         try {
             if (isUpdate && data.id) {
-                // UPDATE: Use POST with method spoofing for file upload
-                formData.append('_method', 'PUT');
+                // PHP APIs often require POST + _method=PUT for file uploads on update routes
+                formData.append('_method', 'PUT'); 
                 const response = await api.post(`${HERO_API_ENDPOINT}/${data.id}`, formData);
                 return response.data;
             } else {
-                // CREATE: Standard POST
                 const response = await api.post(HERO_API_ENDPOINT, formData);
                 return response.data;
             }
         } catch (error: any) {
-            const validationError = error.response?.data?.errors?.image_file?.[0] 
-                                    || error.response?.data?.errors?.offer_id?.[0]; // Catch specific errors
+            // Ensure validation error catching includes the new file names
+            const validationError = error.response?.data?.errors?.pc_image_file?.[0]
+                                 || error.response?.data?.errors?.mobile_image_file?.[0]
+                                 || error.response?.data?.errors?.offer_id?.[0]; 
             const msg = validationError || error.response?.data?.message || 'Failed to save hero section.';
             throw new Error(msg);
         }
@@ -93,7 +111,6 @@ export const useContentService = () => {
     // HOME SECTION (PRODUCT GRIDS) CRUD (Uses JSON client)
     // ---------------------------------------------------------------------
     
-    // ... (fetchAllHomeSections and saveHomeSection logic remains the same as previously provided)
     const fetchAllHomeSections = useCallback(async (): Promise<HomeSection[]> => {
         const api = getAdminClient();
         try {
@@ -111,6 +128,7 @@ export const useContentService = () => {
         const payload = { 
             ...data, 
             is_active: data.is_active ? 1 : 0,
+            // Ensure product_ids is stringified for JSON/application-json clients
             product_ids: data.product_ids ? JSON.stringify(data.product_ids) : '[]'
         };
 

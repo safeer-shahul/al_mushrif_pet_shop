@@ -1,13 +1,15 @@
-// src/components/admin/content/HomeSectionForm.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FaSave, FaList, FaLink, FaStar, FaPlus, FaTrash, FaSearch, FaSpinner, FaInfoCircle } from 'react-icons/fa';
 import { HomeSection } from '@/types/content';
-// 💡 NEW: Import useOfferService for product search functionality
+// 💡 NEW: Import useOfferService
 import { useOfferService } from '@/services/admin/offerService';
 import { Product } from '@/types/product'; 
+import LoadingSpinner from '@/components/ui/LoadingSpinner'; // Ensure this is imported
+import toast from 'react-hot-toast';
 
+// FIX: Removed availableOffers from the interface
 interface HomeSectionFormProps {
     initialData?: Partial<HomeSection>;
     isEditMode: boolean;
@@ -15,7 +17,7 @@ interface HomeSectionFormProps {
     onCancel: () => void;
     isLoading: boolean;
     apiError: string | null;
-    availableOffers: { id: string; name: string }[];
+    // availableOffers: { id: string; name: string }[]; // <-- REMOVED THIS ENTIRELY
 }
 
 const HomeSectionForm: React.FC<HomeSectionFormProps> = ({
@@ -25,10 +27,15 @@ const HomeSectionForm: React.FC<HomeSectionFormProps> = ({
     onCancel,
     isLoading,
     apiError,
-    availableOffers
+    // FIX: Removed availableOffers from destructuring here
 }) => {
-    // 💡 NEW: Access product search method
-    const { searchProductsForDropdown } = useOfferService();
+    // 💡 NEW: Access offer and product search methods
+    const { fetchAllOffers, searchProductsForDropdown } = useOfferService();
+    
+    // 💡 NEW STATE: Store dynamic offers
+    const [availableOffers, setAvailableOffers] = useState<{ id: string; name: string }[]>([]);
+    // FIX: Corrected state initialization
+    const [offersLoading, setOffersLoading] = useState(true); 
 
     const [formData, setFormData] = useState<Partial<HomeSection>>(initialData || {
         title: '',
@@ -43,11 +50,34 @@ const HomeSectionForm: React.FC<HomeSectionFormProps> = ({
     const [searchLoading, setSearchLoading] = useState(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
+    // 1. Fetch Offers on Mount (New Logic)
+    const loadOffers = useCallback(async () => {
+        setOffersLoading(true);
+        try {
+            const offersData = await fetchAllOffers();
+            
+            const mappedOffers = offersData.map(offer => ({
+                id: offer.id,
+                name: `${offer.offer_name} (${offer.type.toUpperCase()})`
+            }));
+
+            setAvailableOffers(mappedOffers);
+        } catch (e) {
+            console.error("Failed to fetch offers:", e);
+            toast.error("Failed to load available offers for selection.", { id: 'offer-load-error' });
+        } finally {
+            setOffersLoading(false);
+        }
+    }, [fetchAllOffers]);
+
+    useEffect(() => {
+        loadOffers();
+    }, [loadOffers]);
+
+
     // Memoize the mapping of product IDs to basic product info for the list display
+    // NOTE: This relies on initialData containing products.
     const selectedProductDetails = useMemo(() => {
-        // NOTE: This relies on initialData potentially containing product info,
-        // but for newly added products, it will only have the ID.
-        // A complete solution might cache product details on selection.
         const productMap = new Map<string, Product>();
         if (initialData?.products) {
             initialData.products.forEach(p => productMap.set(p.id, p));
@@ -68,7 +98,7 @@ const HomeSectionForm: React.FC<HomeSectionFormProps> = ({
         setLocalError(null);
     }, [initialData]);
 
-    // 💡 NEW: Debounced search logic for product dropdown
+    // Debounced search logic for product dropdown (Remains the same)
     useEffect(() => {
         if (!searchQuery) {
             setSearchResults([]);
@@ -78,7 +108,8 @@ const HomeSectionForm: React.FC<HomeSectionFormProps> = ({
         setSearchLoading(true);
         const delaySearch = setTimeout(async () => {
             try {
-                const results = await searchProductsForDropdown(searchQuery);
+                // Ensure searchProductsForDropdown is correctly implemented in useOfferService
+                const results = await searchProductsForDropdown(searchQuery); 
                 setSearchResults(results.data);
             } catch (e) {
                 console.error("Product search failed:", e);
@@ -153,6 +184,10 @@ const HomeSectionForm: React.FC<HomeSectionFormProps> = ({
         
         await onSave(formData);
     };
+
+    if (offersLoading) {
+        return <LoadingSpinner />;
+    }
 
     return (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -302,7 +337,7 @@ const HomeSectionForm: React.FC<HomeSectionFormProps> = ({
                     </div>
                 )}
                 
-                {/* Active Status */}
+                /* Active Status */
                 <div className="flex items-center pt-4 border-t border-gray-100">
                     <input
                         id="is_active"
@@ -319,7 +354,7 @@ const HomeSectionForm: React.FC<HomeSectionFormProps> = ({
                 </div>
             </div>
             
-            {/* Form Footer */}
+            /* Form Footer */
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
                 <button
                     type="button"

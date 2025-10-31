@@ -24,8 +24,12 @@ export interface ProductQueryParams {
     color?: string;
     page?: number;
 
+    // FIX: Added per_page to the query parameters
+    per_page?: number;
+
     sort?: string; 
 }
+
 
 /**
  * Custom hook for public product catalog access.

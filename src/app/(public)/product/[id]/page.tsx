@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { FaShoppingCart, FaTags, FaBox, FaSpinner, FaCheckCircle, FaExchangeAlt, FaRegClock, FaPaw, FaHeart } from 'react-icons/fa';
+// ✨ NEW: FaListAlt icon added for the description section
+import { FaShoppingCart, FaTags, FaBox, FaSpinner, FaCheckCircle, FaExchangeAlt, FaRegClock, FaPaw, FaHeart, FaListAlt } from 'react-icons/fa'; 
 import { usePublicProductService } from '@/services/public/productService';
 import { useCart } from '@/context/CartContext';
 import { Product, ProdVariant, ProductImage } from '@/types/product'; 
@@ -59,6 +60,8 @@ const ProductDetailPage: React.FC = () => {
                 const initialImage = findBestImage(defaultVariant.images) || findBestImage(data.images);
                 setCurrentImage(initialImage);
             } else {
+                // If no variants, implicitly select the product itself for cart ops
+                setSelectedVariantId(data.id); 
                 setCurrentImage(findBestImage(data.images));
             }
         } catch (err: any) {
@@ -70,17 +73,17 @@ const ProductDetailPage: React.FC = () => {
 
     // 2. Fetch Wishlist Status
     const checkWishlist = useCallback(async (variantId: string | undefined) => {
-         if (!isAuthenticated || !variantId) {
-             setWishlistItem(null);
-             return;
-         }
-         try {
-             const item = await checkWishlistStatus(variantId);
-             setWishlistItem(item);
-         } catch (e) {
-             setWishlistItem(null);
-         }
-     }, [isAuthenticated, checkWishlistStatus]);
+          if (!isAuthenticated || !variantId) {
+              setWishlistItem(null);
+              return;
+          }
+          try {
+              const item = await checkWishlistStatus(variantId);
+              setWishlistItem(item);
+          } catch (e) {
+              setWishlistItem(null);
+          }
+    }, [isAuthenticated, checkWishlistStatus]);
 
     useEffect(() => {
         loadProduct();
@@ -88,7 +91,7 @@ const ProductDetailPage: React.FC = () => {
     
     // Check wishlist status whenever selectedVariantId changes
     useEffect(() => {
-         checkWishlist(selectedVariantId);
+          checkWishlist(selectedVariantId);
     }, [selectedVariantId, checkWishlist]);
 
 
@@ -104,9 +107,9 @@ const ProductDetailPage: React.FC = () => {
             const bestImage = findBestImage(selectedVariant.images) || findBestImage(product?.images);
             setCurrentImage(bestImage);
         } else if (product) {
-             setCurrentImage(findBestImage(product.images));
+              setCurrentImage(findBestImage(product.images));
         }
-    }, [selectedVariant, product?.images]);
+    }, [selectedVariant, product?.images, product]);
     
     
     // --- TYPE-SAFE PRICE CALCULATION ---
@@ -116,7 +119,7 @@ const ProductDetailPage: React.FC = () => {
         if (selectedVariant) {
             priceValue = selectedVariant.offer_price;
             if (priceValue === null || priceValue === undefined) {
-                 priceValue = selectedVariant.price;
+                priceValue = selectedVariant.price;
             }
         } 
         if (priceValue === null || priceValue === undefined) {
@@ -131,10 +134,10 @@ const ProductDetailPage: React.FC = () => {
     const basePrice = useMemo(() => {
         let priceValue: number | null | undefined;
         if (selectedVariant) {
-             priceValue = selectedVariant.price;
+              priceValue = selectedVariant.price;
         }
         if (priceValue === null || priceValue === undefined) {
-             priceValue = product?.base_price;
+              priceValue = product?.base_price;
         }
         return parseFloat(String(priceValue || 0));
     }, [selectedVariant, product]);
@@ -168,8 +171,8 @@ const ProductDetailPage: React.FC = () => {
         }
         const variantId = selectedVariantId;
         if (!variantId) {
-             toast.error("Please select a product option first.");
-             return;
+              toast.error("Please select a product option first.");
+              return;
         }
 
         setIsWishlistUpdating(true);
@@ -209,7 +212,7 @@ const ProductDetailPage: React.FC = () => {
         addImages(selectedVariant?.images);
         addImages(product?.images);
         return Array.from(imagesMap.values());
-    }, [selectedVariant?.images, product?.images]);
+    }, [selectedVariant?.images, product?.images, product]);
     
     if (loading) return <LoadingSpinner />;
     if (apiError || !product) return <div className="p-8 text-center text-red-600">{apiError || "Product not found."}</div>;
@@ -221,7 +224,7 @@ const ProductDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-6 rounded-xl shadow-2xl border border-gray-100">
                 
                 {/* ⬅️ COLUMN 1: Image Gallery & Thumbnails */}
-                <div className="flex flex-col md:flex-row gap-4"> {/* Changed to flex-row for desktop */}
+                <div className="flex flex-col md:flex-row gap-4"> 
                     {/* Main Image */}
                     <div className="w-full md:w-[calc(100%-80px)] h-96 relative flex-shrink-0 bg-gray-50 flex items-center justify-center rounded-lg border border-gray-200 shadow-lg overflow-hidden">
                         {currentImage?.image_url ? (
@@ -238,7 +241,7 @@ const ProductDetailPage: React.FC = () => {
                                 {discountPercentage}% OFF
                             </span>
                         )}
-                         <button 
+                           <button 
                             onClick={handleToggleWishlist}
                             disabled={isWishlistUpdating || !selectedVariantId}
                             className="absolute top-3 right-3 p-2 rounded-full bg-white shadow-xl hover:scale-110 transition-transform z-10 disabled:opacity-50"
@@ -287,10 +290,10 @@ const ProductDetailPage: React.FC = () => {
                     <div className='space-y-1'>
                         <h1 className="text-3xl font-extrabold text-slate-900">{product.prod_name}</h1>
                         <Link href={`/brands?id=${product.brand_id}`} className="text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors flex items-center">
-                             <FaPaw className='mr-2 w-4 h-4 text-gray-500' /> {product.brand?.brand_name || 'Generic Brand'}
+                            <FaPaw className='mr-2 w-4 h-4 text-gray-500' /> {product.brand?.brand_name || 'Generic Brand'}
                         </Link>
-                         <Link href={`/products?category_id=${product.category?.id}`} className="text-sm text-blue-600 hover:text-blue-800 transition-colors block">
-                             Category: {product.category?.sub_cat_name || 'Uncategorized'}
+                           <Link href={`/products?category_id=${product.category?.id}`} className="text-sm text-blue-600 hover:text-blue-800 transition-colors block">
+                            Category: {product.category?.sub_cat_name || 'Uncategorized'}
                         </Link>
                     </div>
 
@@ -386,14 +389,24 @@ const ProductDetailPage: React.FC = () => {
                         <p className="flex items-center">
                             <FaRegClock className='mr-2 text-blue-500 w-4 h-4' /> Fast Delivery: 2-3 Days across UAE.
                         </p>
-                        {/* {product.can_return && (
-                            <p className="flex items-center">
-                                <FaExchangeAlt className='mr-2 text-purple-500 w-4 h-4' /> **Easy Returns:** {product.can_replace ? 'Returns & Exchanges Allowed' : 'Returns Allowed'}
-                            </p>
-                        )} */}
                     </div>
                 </div>
             </div>
+            
+            {/* ⬇️ FULL WIDTH ROW: Product Description (NEW SECTION) */}
+            {product.description && (
+                <div className="mt-8 bg-white p-6 rounded-xl shadow-xl border border-gray-100">
+                    <h2 className="text-2xl font-bold text-slate-800 mb-4 pb-2 border-b border-gray-200 flex items-center">
+                        <FaListAlt className='mr-2 text-gray-600' /> Product Details
+                    </h2>
+                    {/* Renders the rich HTML content provided by the backend */}
+                    <div 
+                        className="prose max-w-none text-gray-700 leading-relaxed" 
+                        dangerouslySetInnerHTML={{ __html: product.description }} 
+                    />
+                </div>
+            )}
+            
         </div>
     );
 };

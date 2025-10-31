@@ -46,7 +46,7 @@ const HomeSectionSlider: React.FC<HomeSectionSliderProps> = ({ section, products
     const showNavigationBasedOnContent = products.length > 2;
 
     return (
-        <section className="space-y-4 mb-10 px-4 lg:px-0">
+        <section className="space-y-4 mb-10">
             
             <header className="flex justify-between items-center pb-2 border-b border-gray-200">
                 <h2 className="text-2xl font-bold text-slate-800 flex items-center">

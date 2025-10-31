@@ -22,7 +22,8 @@ export interface HomeSection {
 
 export interface HeroSection {
     id: string;
-    image: string; // URL path
+    pc_image: string; // URL path for Desktop
+    mobile_image: string | null;
     slug: string | null; // Link path
     is_active: boolean;
     order_sequence: number;

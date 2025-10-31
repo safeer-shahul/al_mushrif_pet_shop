@@ -3,6 +3,7 @@
 
 import HeroSectionComponent from '@/components/public/HeroSection';
 import HomeSectionComponent from '@/components/public/HomeSection'; 
+import NewArrivalsSlider from '@/components/public/NewArrivalsSlider';
 import OfferSlider from '@/components/public/OfferSlider'; // 💡 NEW IMPORT
 import React from 'react';
 
@@ -13,10 +14,12 @@ export default function HomePage() {
     return (
         <div className="space-y-12">
             {/* 1. Hero/Banner Section (Carousel) */}
+            
             <HeroSectionComponent />
 
             {/* 💡 NEW: Offer Slider Section */}
             <div className="container mx-auto px-2 md:px-10">
+                <NewArrivalsSlider/>
                  <OfferSlider />
             </div>
             

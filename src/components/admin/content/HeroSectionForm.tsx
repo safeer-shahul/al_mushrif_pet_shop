@@ -6,31 +6,40 @@ import { FaSave, FaImage, FaLink, FaStar, FaTimes } from 'react-icons/fa';
 import { HeroSection } from '@/types/content';
 import ImageUploadField from '@/components/ui/ImageUploadField'; 
 import { useCategoryService } from '@/services/admin/categoryService'; 
-// 💡 Import useOfferService
 import { useOfferService } from '@/services/admin/offerService';
 import toast from 'react-hot-toast';
-import LoadingSpinner from '@/components/ui/LoadingSpinner'; // Ensure this is imported
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface HeroSectionFormProps {
     initialData?: Partial<HeroSection>;
     isEditMode: boolean;
-    onSave: (data: Partial<HeroSection>, imageFile: File | null, imageRemoved: boolean, isUpdate: boolean) => Promise<void>; 
+    // FIX: Updated onSave signature to accept two file/removal sets
+    onSave: (
+        data: Partial<HeroSection>, 
+        pcImageFile: File | null, 
+        pcImageRemoved: boolean,
+        mobileImageFile: File | null, 
+        mobileImageRemoved: boolean,
+        isUpdate: boolean
+    ) => Promise<void>; 
     onCancel: () => void;
     isLoading: boolean;
     apiError: string | null;
-    // ❌ Removed static 'availableOffers' prop
-    // availableOffers: { id: string; name: string }[]; 
 }
 
 const HeroSectionForm: React.FC<HeroSectionFormProps> = ({ 
     initialData, isEditMode, onSave, onCancel, isLoading, apiError 
-    // ❌ Removed 'availableOffers' from destructuring
 }) => {
     const { getStorageUrl } = useCategoryService(); 
-    // 💡 NEW: Initialize Offer Service
     const { fetchAllOffers } = useOfferService();
     
-    // 💡 NEW STATE: Store dynamic offers
+    // --- NEW IMAGE STATES ---
+    const [pcImageFile, setPcImageFile] = useState<File | null>(null);
+    const [pcImageRemoved, setPcImageRemoved] = useState(false);
+    const [mobileImageFile, setMobileImageFile] = useState<File | null>(null);
+    const [mobileImageRemoved, setMobileImageRemoved] = useState(false);
+    // -------------------------
+
     const [availableOffers, setAvailableOffers] = useState<{ id: string; name: string }[]>([]);
     const [offersLoading, setOffersLoading] = useState(true);
 
@@ -39,31 +48,32 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
         order_sequence: 0,
         offer_id: '' 
     }); 
-    const [imageFile, setImageFile] = useState<File | null>(null);
-    const [imageRemoved, setImageRemoved] = useState(false);
     const [localError, setLocalError] = useState<string | null>(null);
     
     // Use the existing image path to create a viewable URL
-    const imagePreviewUrl = useMemo(() => {
-        return initialData?.image ? getStorageUrl(initialData.image) : null;
+    const pcImagePreviewUrl = useMemo(() => {
+        // FIX: Use pc_image field
+        return initialData?.pc_image ? getStorageUrl(initialData.pc_image) : null;
+    }, [initialData, getStorageUrl]);
+    
+    const mobileImagePreviewUrl = useMemo(() => {
+        // FIX: Use mobile_image field
+        return initialData?.mobile_image ? getStorageUrl(initialData.mobile_image) : null;
     }, [initialData, getStorageUrl]);
 
-    // 1. Fetch Offers on Mount
+
+    // 1. Fetch Offers on Mount (Logic remains the same)
     const loadOffers = useCallback(async () => {
         setOffersLoading(true);
         try {
             const offersData = await fetchAllOffers();
-            
-            // Map the full Offer object to the simple { id, name } structure needed for the dropdown
             const mappedOffers = offersData.map(offer => ({
                 id: offer.id,
                 name: `${offer.offer_name} (${offer.type.toUpperCase()})`
             }));
-
             setAvailableOffers(mappedOffers);
         } catch (e) {
             console.error("Failed to fetch offers:", e);
-            // Show a non-blocking toast/error that offers failed to load
             toast.error("Failed to load available offers for selection.", { id: 'offer-load-error' });
         } finally {
             setOffersLoading(false);
@@ -81,8 +91,11 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
             order_sequence: 0,
             offer_id: '' 
         });
-        setImageFile(null);
-        setImageRemoved(false);
+        // Reset file state for both images
+        setPcImageFile(null);
+        setPcImageRemoved(false);
+        setMobileImageFile(null);
+        setMobileImageRemoved(false);
         setLocalError(null);
     }, [initialData]);
 
@@ -94,30 +107,45 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
         }));
     };
     
-    // Handlers for ImageUploadField utility
-    const handleFileChange = (file: File | null) => {
-        setImageFile(file);
-        setImageRemoved(false);
+    // --- Handlers for ImageUploadField utility ---
+    const handlePcFileChange = (file: File | null) => {
+        setPcImageFile(file);
+        setPcImageRemoved(false);
     };
-
-    const handleRemoveExisting = (removed: boolean) => {
+    const handlePcRemoveExisting = (removed: boolean) => {
         if (removed) {
-            setImageRemoved(true);
-            setImageFile(null);
+            setPcImageRemoved(true);
+            setPcImageFile(null);
         }
     };
+    
+    const handleMobileFileChange = (file: File | null) => {
+        setMobileImageFile(file);
+        setMobileImageRemoved(false);
+    };
+    const handleMobileRemoveExisting = (removed: boolean) => {
+        if (removed) {
+            setMobileImageRemoved(true);
+            setMobileImageFile(null);
+        }
+    };
+    // ---------------------------------------------
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLocalError(null);
         
-        // 1. Client-Side Validation: Image check (mandatory for new banners)
-        if (!isEditMode && !imageFile) {
-            setLocalError("A banner image is required.");
+        // 1. Client-Side Validation: PC Image is mandatory
+        const isPcImageMissing = !isEditMode && !pcImageFile;
+        const isPcImageRemoved = isEditMode && !pcImageFile && pcImageRemoved && !initialData?.pc_image;
+
+        if (isPcImageMissing || isPcImageRemoved) {
+            setLocalError("The PC/Desktop banner image is required for a new banner.");
             return;
         }
         
-        // 2. Client-Side Validation: Link Check (Softened - allow saving without a link)
+        // 2. Client-Side Validation: Link Check
         if (!formData.slug && !formData.offer_id) {
             toast("Banner has no link/offer attached. It will be decorative only.", { 
                 icon: '⚠️', 
@@ -125,11 +153,20 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
             });
         }
 
-        // Call the service, marking whether we are in edit mode
-        await onSave(formData, imageFile, imageRemoved, isEditMode);
+        // Call the service, passing both file sets
+        await onSave(
+            formData, 
+            pcImageFile, 
+            pcImageRemoved, 
+            mobileImageFile, 
+            mobileImageRemoved, 
+            isEditMode
+        );
     };
     
-    const currentPreview = imageFile ? URL.createObjectURL(imageFile) : (imageRemoved ? null : imagePreviewUrl);
+    const currentPcPreview = pcImageFile ? URL.createObjectURL(pcImageFile) : (pcImageRemoved ? null : pcImagePreviewUrl);
+    const currentMobilePreview = mobileImageFile ? URL.createObjectURL(mobileImageFile) : (mobileImageRemoved ? null : mobileImagePreviewUrl);
+
 
     // Show a spinner if we are loading offers or performing an action
     if (offersLoading) {
@@ -152,27 +189,49 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
 
             <div className="p-6 space-y-6">
                 
-                {/* 1. Image Upload Field */}
-                <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">
-                        Banner Image (Max 2MB) <span className={isEditMode ? 'text-gray-400' : 'text-red-500'}>*</span>
-                    </label>
+                {/* 1. Image Upload Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
-                    <ImageUploadField
-                        name="image_file"
-                        label="Choose Banner File"
-                        existingImageUrl={currentPreview}
-                        onChange={handleFileChange}
-                        onRemoveExisting={handleRemoveExisting}
-                        disabled={isLoading}
-                    />
-                    <p className="text-xs text-gray-500">
-                        File should be landscape (e.g., 1200x400px)
-                    </p>
+                    {/* PC/Desktop Image Field */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700 flex items-center">
+                            <FaImage className='mr-1 text-blue-500' /> PC/Desktop Banner (Required)
+                        </label>
+                        <ImageUploadField
+                            name="pc_image_file"
+                            label="Choose PC Image"
+                            existingImageUrl={currentPcPreview}
+                            onChange={handlePcFileChange}
+                            onRemoveExisting={handlePcRemoveExisting}
+                            disabled={isLoading}
+                        />
+                        <p className="text-xs text-gray-500">
+                            (Landscape recommended: e.g., 1200x400px)
+                        </p>
+                    </div>
+                    
+                    {/* Mobile Image Field */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700 flex items-center">
+                            <FaImage className='mr-1 text-blue-500' /> Mobile Banner (Optional)
+                        </label>
+                        <ImageUploadField
+                            name="mobile_image_file"
+                            label="Choose Mobile Image"
+                            existingImageUrl={currentMobilePreview}
+                            onChange={handleMobileFileChange}
+                            onRemoveExisting={handleMobileRemoveExisting}
+                            disabled={isLoading}
+                        />
+                        <p className="text-xs text-gray-500">
+                            (Portrait/Square recommended: e.g., 600x600px)
+                        </p>
+                    </div>
                 </div>
 
-                {/* 2. Target Link */}
+                {/* 2. Target Link (Unchanged) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* ... (Slug Field) ... */}
                     <div className="space-y-2">
                         <label htmlFor="slug" className="block text-sm font-medium text-slate-700 flex items-center">
                             <FaLink className='mr-2' /> Internal Slug (Optional)
@@ -188,6 +247,7 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
                             disabled={isLoading}
                         />
                     </div>
+                    {/* ... (Offer Link Field) ... */}
                     <div className="space-y-2">
                         <label htmlFor="offer_id" className="block text-sm font-medium text-slate-700 flex items-center">
                             <FaStar className='mr-2 text-yellow-500' /> Link to Specific Offer (Optional)
@@ -209,7 +269,7 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
                     </div>
                 </div>
 
-                {/* 3. Order and Status */}
+                {/* 3. Order and Status (Unchanged) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-gray-100">
                     <div className="space-y-2">
                         <label htmlFor="order_sequence" className="block text-sm font-medium text-slate-700">
@@ -256,10 +316,11 @@ const HeroSectionForm: React.FC<HeroSectionFormProps> = ({
                 </button>
                 <button
                     type="submit"
-                    disabled={isLoading || (!imageFile && !initialData?.image && !isEditMode)}
+                    // Disabled if loading OR if it's new/empty AND PC image is missing
+                    disabled={isLoading || (!isEditMode && !pcImageFile)} 
                     className={`
                         px-4 py-2 rounded-lg text-white font-medium flex items-center
-                        ${isLoading 
+                        ${isLoading || (!isEditMode && !pcImageFile)
                             ? 'bg-gray-400 cursor-not-allowed' 
                             : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-sm'}
                     `}
