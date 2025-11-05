@@ -1,10 +1,13 @@
-// src/services/admin/offerService.ts
 import { useAuth } from '@/context/AuthContext';
-import { getCsrfToken, createAuthenticatedClient } from '@/utils/ApiClient';
-// Assuming you have defined src/types/offer.ts
+import { getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
 import { Offer } from '@/types/offer'; 
 import { useCallback } from 'react';
 import { Product } from '@/types/product';
+
+// Define the API endpoints
+const OFFER_API_ENDPOINT = '/admin/offers';
+// CRITICAL FIX: Point to the new public route to fetch IDs for the static build
+const OFFER_STATIC_EXPORT_ENDPOINT = '/public/offer-ids'; 
 
 interface PaginatedProductList {
     data: Product[];
@@ -14,12 +17,38 @@ interface PaginatedProductList {
     last_page: number;
 }
 
-// 💡 FIX 1: Correct Constant Definition (Using ENDPOINT)
-const OFFER_API_ENDPOINT = '/admin/offers';
+// Interface to handle the API response for the list endpoint (if paginated or wrapped)
+interface OfferListResponse {
+    data: Offer[];
+    // Include other pagination/meta fields if applicable, otherwise use Offer[] directly
+}
+
+/**
+ * UTILITY FUNCTION FOR NEXT.JS BUILD (Server-side compatible)
+ * Fetches all offer IDs for generateStaticParams. Uses publicClient for build time execution.
+ * NOTE: This relies on the new public route /public/offer-ids
+ */
+export const fetchAllOfferIdsForStaticExport = async (): Promise<string[]> => {
+    try {
+        // Hitting the new public endpoint
+        const response = await publicClient.get<string[]>(OFFER_STATIC_EXPORT_ENDPOINT); 
+
+        // The Laravel route now explicitly returns a Collection of IDs, which Axios handles as string[]
+        const ids = Array.isArray(response.data) ? response.data : [];
+            
+        return ids.map(id => id.toString());
+        
+    } catch (error) {
+        console.error('Failed to fetch Offer IDs for static export (Check API endpoint security):', error);
+        return []; 
+    }
+}
+
 
 export const useOfferService = () => {
     const { token } = useAuth();
     
+    // getClient is ONLY used by the hook functions (which are client-side or server-side protected)
     const getClient = useCallback((isFileUpload: boolean = false) => {
         if (!token) throw new Error("Authentication token missing.");
         const config = isFileUpload ? { omitContentType: true } : {};
@@ -28,7 +57,6 @@ export const useOfferService = () => {
 
     const fetchAllOffers = useCallback(async (): Promise<Offer[]> => {
         const api = getClient();
-        // 💡 FIX 2: Correct variable name and syntax
         const response = await api.get<Offer[]>(OFFER_API_ENDPOINT); 
         return response.data;
     }, [getClient]);
@@ -36,30 +64,22 @@ export const useOfferService = () => {
     const fetchOfferById = useCallback(async (id: string): Promise<Offer> => {
         const api = getClient();
         try {
-            // NOTE: The Axios response object has a 'data' property
             const response = await api.get<Offer>(`${OFFER_API_ENDPOINT}/${id}`);
-
-            // 💡 FIX: Return the response.data directly.
-            // If the API returns the Offer object itself (like your trace shows), 
-            // the data is found at response.data.
             if (!response.data) {
                 throw new Error("API returned empty data.");
             }
             return response.data;
-            
         } catch (error: any) {
-             // Handle 404/network errors gracefully
             throw new Error(error.response?.data?.message || 'Failed to load offer details.');
         }
     }, [getClient]);
 
     const saveOfferWithImage = useCallback(async (id: string | undefined, formData: FormData, isUpdate: boolean = false): Promise<{ message: string, offer: Offer }> => {
-        const api = getClient(true); // Use the multipart client
+        const api = getClient(true); 
         await getCsrfToken();
         
         try {
             if (isUpdate && id) {
-                // Ensure PUT spoofing is present (handled on parent, but safer to check)
                 if (!formData.has('_method')) {
                      formData.append('_method', 'PUT');
                 }
@@ -81,9 +101,6 @@ export const useOfferService = () => {
         await api.delete(`${OFFER_API_ENDPOINT}/${id}`);
     }, [getClient]);
 
-    /**
-     * Searches products by name or SKU for the OfferForm dropdown.
-     */
     const searchProductsForDropdown = useCallback(async (searchQuery: string): Promise<PaginatedProductList> => {
         const api = getClient();
         try {

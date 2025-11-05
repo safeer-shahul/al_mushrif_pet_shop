@@ -1,10 +1,31 @@
-// src/services/admin/brandService.ts
 import { useAuth } from '@/context/AuthContext';
 import { getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
-import { Brand } from '@/types/brand';
+import { Brand } from '@/types/brand'; // Assuming this is defined
 import { useCallback } from 'react';
 
 const BRAND_API_ENDPOINT = '/admin/brands';
+// CRITICAL FIX: Point to the new public route to fetch IDs for the static build
+const BRAND_STATIC_EXPORT_ENDPOINT = '/public/brand-ids'; 
+
+/**
+ * UTILITY FUNCTION FOR NEXT.JS BUILD (Server-side compatible)
+ * Fetches all brand IDs for generateStaticParams, using the public client.
+ */
+export const fetchAllBrandIdsForStaticExport = async (): Promise<string[]> => {
+    try {
+        // Hitting the new public endpoint
+        const response = await publicClient.get<string[]>(BRAND_STATIC_EXPORT_ENDPOINT);
+
+        const ids = Array.isArray(response.data) ? response.data : [];
+
+        // Note: brand_id is used by the controller, so the returned IDs are correct.
+        return ids.map(id => id.toString());
+    } catch (error) {
+        console.error('Failed to fetch Brand IDs for static export (Check API endpoint security):', error);
+        return [];
+    }
+}
+
 
 /**
  * Custom hook to encapsulate all Brand API operations.
@@ -13,7 +34,6 @@ export const useBrandService = () => {
     const { token } = useAuth();
     const storagePrefix = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + '/storage/';
 
-    // Utility to get the correct Axios client (from ApiClient.ts)
     const getClient = useCallback((isFileUpload: boolean = false) => {
         const config = isFileUpload ? { omitContentType: true } : {};
         if (token) {
@@ -22,13 +42,11 @@ export const useBrandService = () => {
         return publicClient; 
     }, [token]);
 
-    // Utility to construct storage URL (from categoryService.ts)
     const getStorageUrl = useCallback((path: string | null) => {
         if (!path) return null;
         if (path.startsWith('http')) return path;
         return storagePrefix + path;
     }, [storagePrefix]);
-
 
     // ---------------------------------------------------------------------
     // BRAND CRUD OPERATIONS
@@ -38,10 +56,7 @@ export const useBrandService = () => {
         const api = getClient(false);
         try {
             const response = await api.get<Brand[]>(BRAND_API_ENDPOINT);
-            
-            // Log the response for debugging
             console.log("Brands response:", response.data);
-            
             return response.data;
         } catch (error: any) {
             console.error('API Error in fetchAllBrands:', error);
@@ -53,29 +68,17 @@ export const useBrandService = () => {
         const api = getClient(false);
         try {
             const response = await api.get<Brand>(`${BRAND_API_ENDPOINT}/${id}`);
-            
-            // Log the response for debugging
             console.log("Brand detail response:", response.data);
-            
-            // Ensure the brand_logo is an absolute URL
-            const brandData = response.data;
-            brandData.brand_logo = getStorageUrl(brandData.brand_logo);
-            
-            return brandData;
+            return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to load brand details.');
         }
-    }, [getClient, getStorageUrl]);
+    }, [getClient]);
 
     const createBrand = useCallback(async (formData: FormData) => {
         const api = getClient(true);
-        
-        // For debugging, log the form data entries
         console.log("Creating brand with formData:");
-        for (const pair of formData.entries()) {
-            console.log(pair[0], pair[1]);
-        }
-        
+        for (const pair of formData.entries()) { console.log(pair[0], pair[1]); }
         try {
             await getCsrfToken();
             const response = await api.post(BRAND_API_ENDPOINT, formData);
@@ -88,20 +91,13 @@ export const useBrandService = () => {
 
     const updateBrand = useCallback(async (id: string, formData: FormData) => {
         const api = getClient(true);
-        
-        // For debugging, log the form data entries
         console.log("Updating brand with formData:");
-        for (const pair of formData.entries()) {
-            console.log(pair[0], pair[1]);
-        }
-        
+        for (const pair of formData.entries()) { console.log(pair[0], pair[1]); }
         try {
             await getCsrfToken();
-            // Make sure _method is only added once
             if (!formData.has('_method')) {
                 formData.append('_method', 'PUT');
             }
-            
             const response = await api.post(`${BRAND_API_ENDPOINT}/${id}`, formData);
             return response.data;
         } catch (error: any) {
@@ -127,6 +123,6 @@ export const useBrandService = () => {
         createBrand,
         updateBrand,
         deleteBrand,
-        getStorageUrl
+        getStorageUrl 
     };
 };

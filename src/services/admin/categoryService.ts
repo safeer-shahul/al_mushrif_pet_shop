@@ -1,5 +1,3 @@
-// src/services/admin/categoryService.ts
-
 import { useApiClient, getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
 import { useAuth } from '@/context/AuthContext';
 import { RootCategory, SubCategory, RootCategoryIndexResponse, SubCategoryIndexResponse } from '@/types/category';
@@ -7,6 +5,51 @@ import { useCallback } from 'react';
 
 const ROOT_CATEGORY_API_ENDPOINT = '/admin/root-categories';
 const SUB_CATEGORY_API_ENDPOINT = '/admin/sub-categories';
+
+// CRITICAL FIX: Point to the new public route for sub-category IDs
+const SUB_CATEGORY_STATIC_EXPORT_ENDPOINT = '/public/sub-category-ids';
+
+// Assuming RootCategory type looks something like this (defined in '@/types/category'):
+// type RootCategory = { id: number | string; cat_name: string; cat_image: string | null; ... };
+
+/**
+ * UTILITY FUNCTION FOR NEXT.JS BUILD (Server-side compatible)
+ * Fetches all SUB CATEGORY IDs for generateStaticParams, using the public client.
+ */
+export const fetchAllSubCategoryIdsForStaticExport = async (): Promise<string[]> => {
+    try {
+        // HITTING THE NEW PUBLIC ENDPOINT
+        const response = await publicClient.get<string[]>(SUB_CATEGORY_STATIC_EXPORT_ENDPOINT); 
+        
+        // The Laravel route returns a direct array of IDs
+        const ids = Array.isArray(response.data) ? response.data : [];
+            
+        return ids.map(id => id.toString());
+    } catch (error) {
+        console.error('Failed to fetch Sub Category IDs for static export (Check API endpoint security):', error);
+        return []; 
+    }
+}
+
+/**
+ * UTILITY FUNCTION FOR NEXT.JS BUILD (Server-side compatible)
+ * Fetches all root category IDs for generateStaticParams, using the public client.
+ */
+export const fetchAllRootCategoryIdsForStaticExport = async (): Promise<string[]> => {
+    try {
+        const response = await publicClient.get<RootCategory[]>(`/categories`); 
+        
+        const ids = (response.data || [])
+            .map(category => category.id ? category.id.toString() : null)
+            .filter((id): id is string => id !== null);
+            
+        return ids;
+    } catch (error) {
+        console.error('Failed to fetch Root Category IDs for static export:', error);
+        return []; 
+    }
+}
+
 
 /**
  * Custom hook to encapsulate all Category API operations.
@@ -32,19 +75,16 @@ export const useCategoryService = () => {
     }, [storagePrefix]);
 
     // ---------------------------------------------------------------------
-    // ROOT CATEGORY OPERATIONS (All memoized)
+    // REST OF HOOK FUNCTIONS (Unchanged)
     // ---------------------------------------------------------------------
 
-    // MODIFIED: This now fetches the deeply nested structure for admin purposes
     const fetchAllRootCategories = useCallback(async (): Promise<RootCategory[]> => {
         const api = getClient(false);
         try {
-            // Hitting the public API which now returns the nested structure (Root -> L1 -> L2)
             const response = await api.get<RootCategory[]>(`/categories`); 
             return response.data || [];
         } catch (error: any) {
             console.error('API Error in fetchAllRootCategories:', error);
-            // Fallback for admin endpoint if public one fails
             try {
                 const adminResponse = await api.get<RootCategoryIndexResponse>(ROOT_CATEGORY_API_ENDPOINT); 
                 return adminResponse.data?.root_categories || [];
@@ -54,7 +94,6 @@ export const useCategoryService = () => {
         }
     }, [getClient]);
     
-    // ... (fetchAllSubCategories remains the same)
     const fetchAllSubCategories = useCallback(async (): Promise<SubCategory[]> => {
         const api = getClient(false);
         try {
@@ -65,14 +104,10 @@ export const useCategoryService = () => {
         }
     }, [getClient]);
     
-    // ... (All other CRUD methods remain the same for brevity)
-    // ... (fetchRootCategoryById, createRootCategory, updateRootCategory, deleteRootCategory, etc.)
-
-
     const fetchRootCategoryById = useCallback(async (id: string): Promise<RootCategory> => {
         const api = getClient(false);
         try {
-            const response = await api.get<{ category: RootCategory }>(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`);
+            const response = await api.get<{ category: RootCategory }>(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`); 
             return response.data?.category;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to load root category details.');
@@ -163,21 +198,18 @@ export const useCategoryService = () => {
             fetchAllSubCategories() 
         ]);
         
-        // Flatten nested root categories for this list IF they were loaded nested.
-        // But for the sake of the Product Form, we now prefer the nested version.
-        // Let's rely on the main function we expose to ProductForm to handle the structure.
         return [...roots, ...subs] as (RootCategory | SubCategory)[]; 
     }, [fetchAllRootCategories, fetchAllSubCategories]); 
 
 
     return {
-        fetchAllRootCategories, // This now returns nested data
+        fetchAllRootCategories, 
         fetchRootCategoryById,
         createRootCategory,
         updateRootCategory,
         deleteRootCategory,
         
-        fetchAllSubCategories, // This still returns the flat list of all sub-categories
+        fetchAllSubCategories, 
         fetchSubCategoryById,
         createSubCategory,
         updateSubCategory,

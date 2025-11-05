@@ -1,74 +1,27 @@
 // src/app/auth/callback/page.tsx
-'use client';
+// This is a Server Component.
 
-import { useEffect, useRef } from 'react'; // Import useRef to prevent double execution
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { Suspense } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import AuthCallbackPageClient from './client-page';
 
+/**
+ * The main page component acts as the Server Component wrapper.
+ * We must wrap the client component that uses useSearchParams() in <Suspense /> 
+ * to handle the lack of search params during static build time.
+ */
 const AuthCallbackPage: React.FC = () => {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { login } = useAuth();
-
-  // Use a ref to ensure the logic only runs once, preventing infinite loop
-  const hasProcessed = useRef(false);
-
-  useEffect(() => {
-    // Prevent double processing, especially important in development Strict Mode
-    if (hasProcessed.current) return;
-
-    const token = searchParams.get('token'); 
-    const userDataJson = searchParams.get('user'); 
-    const isError = searchParams.get('error');
-    const redirectPath = searchParams.get('redirect') || '/'; // Default to homepage
-
-    if (isError) {
-      console.error('OAuth Callback Error:', isError);
-      const targetLoginPath = redirectPath === '/mushrif-admin' ? '/mushrif-admin-login' : '/login';
-      
-      hasProcessed.current = true;
-      // Redirect to the login page with the error
-      router.replace(`${targetLoginPath}?error=${isError}`);
-      return;
-    }
-
-    if (token && userDataJson) {
-      if (!hasProcessed.current) {
-        try {
-          const user = JSON.parse(userDataJson);
-          
-          login(user, token);
-          
-          // CRITICAL: Mark as processed immediately before navigation
-          hasProcessed.current = true;
-          
-          // Navigate to the final destination, removing the token/user data from the URL history
-          // This breaks the loop by navigating to a clean URL.
-          router.replace(redirectPath);
-
-        } catch (e) {
-          console.error('Failed to parse user data or process login:', e);
-          hasProcessed.current = true;
-          router.replace('/login?error=processing_failed');
-        }
-      }
-    } else if (!isError && !token) {
-        // If no token or error, and we haven't processed, default back to login 
-        // (This handles users landing here without any query parameters)
-        hasProcessed.current = true;
-        router.replace('/login?error=auth_data_missing');
-    }
-
-    // Dependency array is empty or minimal to control execution
-  }, [searchParams, router, login]); 
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen">
-      <LoadingSpinner />
-      <p className="mt-4 text-gray-600">Processing authentication...</p>
-    </div>
-  );
+    return (
+        // The Suspense boundary satisfies the Next.js static export requirement.
+        <Suspense fallback={
+             <div className="flex flex-col items-center justify-center min-h-screen">
+                 <LoadingSpinner />
+                 <p className="mt-4 text-gray-600">Loading authentication data...</p>
+             </div>
+        }>
+            <AuthCallbackPageClient />
+        </Suspense>
+    );
 };
 
 export default AuthCallbackPage;

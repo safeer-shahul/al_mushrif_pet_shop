@@ -1,4 +1,3 @@
-// src/services/public/productService.ts
 import { publicClient } from '@/utils/ApiClient';
 import { Product } from '@/types/product';
 import { useCallback } from 'react';
@@ -23,11 +22,31 @@ export interface ProductQueryParams {
     max_price?: number;
     color?: string;
     page?: number;
-
-    // FIX: Added per_page to the query parameters
     per_page?: number;
-
     sort?: string; 
+}
+
+// CRITICAL FIX: New constant for the dedicated public ID route
+const PRODUCT_STATIC_EXPORT_ENDPOINT = '/public/product-ids'; 
+
+
+/**
+ * UTILITY FUNCTION FOR NEXT.JS BUILD (Server-side compatible)
+ * Fetches all public product IDs for generateStaticParams. Uses publicClient.
+ */
+export const fetchAllProductIdsForStaticExport = async (): Promise<string[]> => {
+    try {
+        // HITTING THE NEW DEDICATED PUBLIC ENDPOINT
+        const response = await publicClient.get<string[]>(PRODUCT_STATIC_EXPORT_ENDPOINT); 
+
+        const ids = Array.isArray(response.data) ? response.data : [];
+            
+        return ids.map(id => id.toString());
+    } catch (error) {
+        // Using a specific error message to track down the issue
+        console.error('Failed to fetch Product IDs for static export (401/404 - Check public/product-ids route):', error);
+        return []; 
+    }
 }
 
 
@@ -37,12 +56,11 @@ export interface ProductQueryParams {
 export const usePublicProductService = () => {
     
     // ---------------------------------------------------------------------
-    // PUBLIC PRODUCT LISTING (INDEX)
+    // PUBLIC PRODUCT LISTING (INDEX) - (Unchanged)
     // ---------------------------------------------------------------------
 
     const fetchProducts = useCallback(async (params: ProductQueryParams = {}): Promise<PaginatedProducts> => {
         try {
-            // Build query string from non-null parameters
             const query = Object.keys(params)
                 .filter(key => params[key as keyof ProductQueryParams] !== undefined && params[key as keyof ProductQueryParams] !== null)
                 .map(key => {
@@ -53,7 +71,6 @@ export const usePublicProductService = () => {
             
             const endpoint = `/products${query ? '?' + query : ''}`;
             
-            // The Laravel API returns the paginated object directly
             const response = await publicClient.get<PaginatedProducts>(endpoint);
             
             return response.data;
@@ -65,12 +82,11 @@ export const usePublicProductService = () => {
     }, []);
 
     // ---------------------------------------------------------------------
-    // PUBLIC PRODUCT DETAIL (SHOW)
+    // PUBLIC PRODUCT DETAIL (SHOW) - (Unchanged)
     // ---------------------------------------------------------------------
 
     const fetchProductDetail = useCallback(async (id: string): Promise<Product> => {
         try {
-            // Ensure necessary relations like variants and images are implicitly loaded by the backend show method
             const response = await publicClient.get<Product>(`/products/${id}`);
             return response.data;
         } catch (error: any) {

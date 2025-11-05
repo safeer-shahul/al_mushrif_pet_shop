@@ -1,11 +1,39 @@
-// src/services/admin/productService.ts
 import { useAuth } from '@/context/AuthContext';
 import { getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
 import { Product, ProdVariant, ProductImage } from '@/types/product';
 import { useCallback } from 'react';
 
 const PRODUCT_API_ENDPOINT = '/admin/products';
-const IMAGE_API_ENDPOINT = '/admin/images'; // Base path for single image CRUD
+const IMAGE_API_ENDPOINT = '/admin/images'; 
+
+// CRITICAL FIX: The endpoint to hit for static ID generation (must be public in Laravel)
+const PRODUCT_STATIC_EXPORT_ENDPOINT = '/public/product-ids'; 
+
+// ---------------------------------------------------------------------
+// 1. PUBLIC UTILITY FOR NEXT.JS BUILD (FIXING 401)
+// ---------------------------------------------------------------------
+
+/**
+ * UTILITY FUNCTION FOR NEXT.JS BUILD (Server-side compatible)
+ * Fetches all product IDs for generateStaticParams. Uses publicClient.
+ */
+export const fetchAllProductIdsForStaticExport = async (): Promise<string[]> => {
+    try {
+        // Hitting the new dedicated public endpoint (which Laravel exposes)
+        const response = await publicClient.get<string[]>(PRODUCT_STATIC_EXPORT_ENDPOINT); 
+
+        const ids = Array.isArray(response.data) ? response.data : [];
+            
+        return ids.map(id => id.toString());
+    } catch (error) {
+        console.error('Failed to fetch Product IDs for static export (401/404 - Check public/product-ids route):', error);
+        return []; 
+    }
+}
+
+// ---------------------------------------------------------------------
+// 2. AUTHENTICATED HOOK (useProductService)
+// ---------------------------------------------------------------------
 
 /**
  * Custom hook to encapsulate all Product and Variant API operations.
@@ -19,6 +47,7 @@ export const useProductService = () => {
         if (token) {
             return createAuthenticatedClient(token, config); 
         }
+        // NOTE: Admin endpoints are strictly protected, hence throwing if token is missing
         throw new Error("Authentication token missing."); 
     }, [token]);
     
@@ -29,13 +58,12 @@ export const useProductService = () => {
     }, [storagePrefix]);
 
     // ---------------------------------------------------------------------
-    // PRODUCT CRUD OPERATIONS (JSON)
+    // PRODUCT CRUD OPERATIONS (JSON) - (Remaining functions are unchanged)
     // ---------------------------------------------------------------------
 
     const fetchAllProducts = useCallback(async (): Promise<Product[]> => {
         const api = getClient();
         try {
-            // Ensure images are eagerly loaded for the base product listing
             const response = await api.get<Product[]>(`${PRODUCT_API_ENDPOINT}?include=images`);
             return response.data;
         } catch (error: any) {
@@ -46,7 +74,6 @@ export const useProductService = () => {
     const fetchProductById = useCallback(async (id: string): Promise<Product> => {
         const api = getClient();
         try {
-            // Ensure variants and images are eagerly loaded
             const response = await api.get<Product>(`${PRODUCT_API_ENDPOINT}/${id}?include=variants.images,images`);
             return response.data;
         } catch (error: any) {
@@ -59,17 +86,15 @@ export const useProductService = () => {
     try {
         await getCsrfToken();
         
-        // Prepare payload
         const payload = {
             ...productData,
-            // No change here - the issue is in how the backend processes this field
             has_variants: productData.has_variants ? 1 : 0,
             can_return: productData.can_return ? 1 : 0,
             can_replace: productData.can_replace ? 1 : 0,
             product_filters: productData.product_filters ? JSON.stringify(productData.product_filters) : null,
         };
         
-        console.log('Sending payload:', payload); // Add this to debug
+        console.log('Sending payload:', payload); 
         
         const response = await api.post(PRODUCT_API_ENDPOINT, payload);
         return response.data.product as Product;
@@ -83,14 +108,11 @@ export const useProductService = () => {
         try {
             await getCsrfToken();
             
-            // Prepare payload for update - NEED TO ADD THE SAME CONVERSIONS AS IN createProduct
             const payload = {
                 ...productData,
-                // Ensure consistent handling of boolean fields between create and update
-                has_variants: productData.has_variants ? 1 : 0, // Convert to 1/0 for Laravel
+                has_variants: productData.has_variants ? 1 : 0,
                 can_return: productData.can_return ? 1 : 0,
                 can_replace: productData.can_replace ? 1 : 0,
-                // Handle product filters properly
                 product_filters: productData.product_filters ? 
                     (typeof productData.product_filters === 'string' ? 
                         productData.product_filters : 
@@ -98,10 +120,7 @@ export const useProductService = () => {
                     ) : null,
             };
             
-            // Call the update endpoint
             const response = await api.put(`${PRODUCT_API_ENDPOINT}/${id}`, payload);
-            
-            // After update, fetch the complete product data with all relationships
             const updatedProduct = await fetchProductById(id);
             
             return updatedProduct;
@@ -122,14 +141,13 @@ export const useProductService = () => {
     }, [getClient]);
 
     // ---------------------------------------------------------------------
-    // PRODUCT VARIANT CRUD OPERATIONS (JSON Payload)
+    // PRODUCT VARIANT CRUD OPERATIONS (JSON Payload) - (Unchanged)
     // ---------------------------------------------------------------------
 
     const rawCreateVariantJson = useCallback(async (productId: string, payload: Partial<ProdVariant>) => {
         const api = getClient();
         try {
             await getCsrfToken();
-            // No images field in payload
             const response = await api.post(`${PRODUCT_API_ENDPOINT}/${productId}/variants`, payload);
             return response.data.variant as ProdVariant;
         } catch (error: any) {
@@ -141,7 +159,6 @@ export const useProductService = () => {
         const api = getClient();
         try {
             await getCsrfToken();
-            // No images field in payload
             const response = await api.put(`${PRODUCT_API_ENDPOINT}/${productId}/variants/${variantId}`, payload);
             return response.data.variant as ProdVariant;
         } catch (error: any) {
@@ -161,10 +178,9 @@ export const useProductService = () => {
     }, [getClient]);
 
     // ---------------------------------------------------------------------
-    // PRODUCT/VARIANT IMAGE MANAGEMENT
+    // PRODUCT/VARIANT IMAGE MANAGEMENT - (Unchanged)
     // ---------------------------------------------------------------------
     
-    /** Uploads one or more images to a Product or Variant */
     const uploadImages = useCallback(async (parentId: string, files: File[], isVariant: boolean): Promise<ProductImage[]> => {
         const api = getClient(true);
         const formData = new FormData();
@@ -183,7 +199,6 @@ export const useProductService = () => {
         }
     }, [getClient]);
     
-    /** Updates file or metadata (is_primary, order_sequence) of a single image record */
     const updateImage = useCallback(async (imageId: string, formData: FormData): Promise<ProductImage> => {
         const api = getClient(true);
         try {
@@ -196,7 +211,6 @@ export const useProductService = () => {
         }
     }, [getClient]);
     
-    /** Deletes a single image record */
     const deleteImage = useCallback(async (imageId: string) => {
         const api = getClient();
         try {
