@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
 
   // API endpoint for your Laravel backend
   env: {
-    NEXT_PUBLIC_API_URL: 'https://almushrifaquarium.com/api',
+    NEXT_PUBLIC_API_URL: 'https://api.almushrifaquarium.com',
+    // NEXT_PUBLIC_API_URL: 'http://localhost:8000',
   },
 
   // Disable image optimization (required for static export)

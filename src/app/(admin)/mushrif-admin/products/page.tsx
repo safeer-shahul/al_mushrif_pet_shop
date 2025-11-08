@@ -1,4 +1,3 @@
-// src/app/(admin)/mushrif-admin/products/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -100,7 +99,8 @@ const ProductListPage: React.FC = () => {
                         <FaSync className={`inline-block mr-2 ${loading ? 'animate-spin' : ''}`} />
                         {loading ? 'Loading...' : 'Refresh'}
                     </button>
-                    <Link href="/mushrif-admin/products/create" passHref>
+                    {/* 👇 CHANGE: Link to the static /edit page for CREATION */}
+                    <Link href="/mushrif-admin/products/edit" passHref>
                         <button className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg hover:from-blue-700 hover:to-blue-600 transition-colors shadow-sm">
                             <FaPlus className="mr-2" /> Add New Product
                         </button>
@@ -148,7 +148,8 @@ const ProductListPage: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                            <Link href={`/mushrif-admin/products/${product.id}`}>
+                                            {/* 👇 CHANGE: Link to the static /edit page with ID as query parameter */}
+                                            <Link href={`/mushrif-admin/products/edit?id=${product.id}`}>
                                                 <button className="p-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors">
                                                     <FaEdit />
                                                 </button>
@@ -177,7 +178,8 @@ const ProductListPage: React.FC = () => {
                         <h3 className="text-lg font-medium text-gray-900">No Products Found</h3>
                         <p className="mt-2 text-gray-500 max-w-sm mx-auto">Time to build your catalog!</p>
                         <div className="mt-6">
-                            <Link href="/mushrif-admin/products/create" passHref>
+                            {/* 👇 CHANGE: Link to the static /edit page for creation */}
+                            <Link href="/mushrif-admin/products/edit" passHref>
                                 <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg hover:from-blue-700 hover:to-blue-600 shadow-sm">
                                     <FaPlus className="mr-2" /> Create First Product
                                 </button>

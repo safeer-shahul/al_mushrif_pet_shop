@@ -96,7 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
   
-    window.location.href = '/'; 
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.location.href = '/';
+    }
   };
   
   // Memoized context value to prevent unnecessary re-renders
