@@ -3,16 +3,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { FaPlus, FaEdit, FaTrash, FaSync, FaBox, FaTags } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaSync, FaBox, FaTags, FaSpinner, FaTimesCircle, FaCheckCircle } from 'react-icons/fa';
 import { Product } from '@/types/product';
 import { useProductService } from '@/services/admin/productService';
+import { toast } from 'react-hot-toast';
 
 const ProductListPage: React.FC = () => {
-    const { fetchAllProducts, deleteProduct } = useProductService();
+    // 💡 Toggle function imported from service
+    const { fetchAllProducts, deleteProduct, toggleProductStatus } = useProductService(); 
     
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isToggling, setIsToggling] = useState<string | null>(null); // Tracks which product is currently toggling
     const hasFetchedRef = useRef(false);
 
     // Load function
@@ -43,6 +46,25 @@ const ProductListPage: React.FC = () => {
         }
     }, [loadProducts]);
 
+    // 💡 NEW HANDLER: Toggle disabled status
+    const handleToggleStatus = async (productId: string, currentStatus: boolean) => {
+        const newStatus = !currentStatus;
+        setIsToggling(productId);
+
+        try {
+            const updatedProduct = await toggleProductStatus(productId, newStatus);
+            
+            setProducts(prev => prev.map(p => p.id === productId ? updatedProduct : p));
+
+            toast.success(`Product ${newStatus ? 'disabled' : 'enabled'} successfully.`);
+        } catch (err: any) {
+            toast.error(err.message || "Failed to change product status.");
+        } finally {
+            setIsToggling(null);
+        }
+    };
+    
+
     const handleDelete = async (id: string, name: string) => {
         if (!window.confirm(`Are you sure you want to delete the Product: "${name}"? This will delete all variants and cannot be undone.`)) return;
         
@@ -51,11 +73,7 @@ const ProductListPage: React.FC = () => {
             await deleteProduct(id);
             
             // Show success toast
-            const toast = document.createElement('div');
-            toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-            toast.textContent = 'Product deleted successfully.';
-            document.body.appendChild(toast);
-            setTimeout(() => document.body.removeChild(toast), 3000);
+            toast.success('Product deleted successfully.');
             
             // Reload the list
             hasFetchedRef.current = false;
@@ -99,7 +117,6 @@ const ProductListPage: React.FC = () => {
                         <FaSync className={`inline-block mr-2 ${loading ? 'animate-spin' : ''}`} />
                         {loading ? 'Loading...' : 'Refresh'}
                     </button>
-                    {/* 👇 CHANGE: Link to the static /edit page for CREATION */}
                     <Link href="/mushrif-admin/products/edit" passHref>
                         <button className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg hover:from-blue-700 hover:to-blue-600 transition-colors shadow-sm">
                             <FaPlus className="mr-2" /> Add New Product
@@ -126,6 +143,7 @@ const ProductListPage: React.FC = () => {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variants</th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -147,8 +165,25 @@ const ProductListPage: React.FC = () => {
                                                 {getVariantCount(product)} Variant{getVariantCount(product) !== 1 ? 's' : ''}
                                             </span>
                                         </td>
+                                        
+                                        {/* Status Toggle Column */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            <button 
+                                                onClick={() => handleToggleStatus(product.id, product.is_disabled || false)}
+                                                disabled={isToggling !== null}
+                                                className="transition-colors disabled:opacity-50"
+                                            >
+                                                {isToggling === product.id ? (
+                                                    <FaSpinner className='animate-spin w-5 h-5 text-gray-500' />
+                                                ) : product.is_disabled ? (
+                                                    <FaTimesCircle className='w-5 h-5 text-red-500' title="Click to Enable" />
+                                                ) : (
+                                                    <FaCheckCircle className='w-5 h-5 text-green-500' title="Click to Disable" />
+                                                )}
+                                            </button>
+                                        </td>
+                                        
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                            {/* 👇 CHANGE: Link to the static /edit page with ID as query parameter */}
                                             <Link href={`/mushrif-admin/products/edit?id=${product.id}`}>
                                                 <button className="p-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors">
                                                     <FaEdit />
@@ -178,7 +213,6 @@ const ProductListPage: React.FC = () => {
                         <h3 className="text-lg font-medium text-gray-900">No Products Found</h3>
                         <p className="mt-2 text-gray-500 max-w-sm mx-auto">Time to build your catalog!</p>
                         <div className="mt-6">
-                            {/* 👇 CHANGE: Link to the static /edit page for creation */}
                             <Link href="/mushrif-admin/products/edit" passHref>
                                 <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg hover:from-blue-700 hover:to-blue-600 shadow-sm">
                                     <FaPlus className="mr-2" /> Create First Product

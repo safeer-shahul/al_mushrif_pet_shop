@@ -1,8 +1,8 @@
-// src/app/(admin)/mushrif-admin/orders/[id]/client-page.tsx
+// src/app/(admin)/mushrif-admin/orders/detail/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FaArrowLeft, FaTruck, FaDollarSign, FaUser, FaMapMarkerAlt, FaCalendarAlt, FaCheckCircle, FaTimesCircle, FaBoxOpen, FaCube, FaSpinner } from 'react-icons/fa';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAdminOrderService } from '@/services/admin/orderService';
@@ -10,11 +10,11 @@ import { Order, OrderItem } from '@/types/order';
 import { useCategoryService } from '@/services/admin/categoryService'; 
 import { ProductImage } from '@/types/product'; 
 
-// Renamed component
-const AdminOrderDetailPageClient: React.FC = () => {
-    const params = useParams();
+const AdminOrderDetailPage: React.FC = () => {
     const router = useRouter();
-    const orderId = params.id as string;
+    const searchParams = useSearchParams();
+    const orderId = searchParams.get('id'); // GET ID from '?id=...'
+    
     const { fetchOrderById, updateOrderStatus } = useAdminOrderService();
     const { getStorageUrl } = useCategoryService(); 
 
@@ -25,7 +25,12 @@ const AdminOrderDetailPageClient: React.FC = () => {
 
     // --- Load Data ---
     const loadOrder = useCallback(async () => {
-        if (!orderId) return;
+        if (!orderId) {
+            setError('Order ID is required');
+            setLoading(false);
+            return;
+        }
+        
         setLoading(true);
         setError(null);
         try {
@@ -67,7 +72,6 @@ const AdminOrderDetailPageClient: React.FC = () => {
      * Fixes JSON string issues and retrieves the product image URL.
      */
     const getProductImage = useCallback((item: OrderItem) => {
-        
         const safeParseImages = (rawImages: any): ProductImage[] => {
             if (typeof rawImages === 'string' && rawImages.trim().startsWith('[')) {
                 try {
@@ -80,16 +84,11 @@ const AdminOrderDetailPageClient: React.FC = () => {
             return (rawImages || []) as ProductImage[];
         };
 
-        // 1. Get safely parsed image arrays
         const variantImages = safeParseImages(item.variant?.images);
         const productImages = safeParseImages(item.variant?.product?.images);
         
-        // 2. Combine and find primary image
         const imagesToSearch = [...variantImages, ...productImages].filter(img => img && typeof img.image_url === 'string'); 
-        
         const primaryImage = imagesToSearch.find(img => img.is_primary);
-        
-        // 3. Determine URL
         const imageUrl = primaryImage?.image_url || imagesToSearch[0]?.image_url || null;
         
         return getStorageUrl(imageUrl);
@@ -97,6 +96,8 @@ const AdminOrderDetailPageClient: React.FC = () => {
 
     // --- Status Update Handler ---
     const handleStatusUpdate = async (newStatus: string) => {
+        if (!orderId) return;
+        
         const reason = newStatus === 'Cancelled' 
             ? prompt(`Enter reason for canceling Order ${order?.id}:`)
             : null;
@@ -151,7 +152,7 @@ const AdminOrderDetailPageClient: React.FC = () => {
             {/* --- Grid Layout for Summary & Shipping --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* 1. Customer & Address Card (Col 1) */}
+                {/* 1. Customer & Address Card */}
                 <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
                     <h3 className="text-lg font-semibold text-slate-700 flex items-center"><FaUser className="mr-2" /> Customer & Delivery</h3>
                     <div className="space-y-2 text-sm text-gray-600">
@@ -171,7 +172,7 @@ const AdminOrderDetailPageClient: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 2. Financial Summary Card (Col 2) */}
+                {/* 2. Financial Summary Card */}
                 <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
                     <h3 className="text-lg font-semibold text-slate-700 flex items-center"><FaDollarSign className="mr-2" /> Financial Summary</h3>
                     <div className="space-y-2 text-sm text-gray-600">
@@ -184,8 +185,8 @@ const AdminOrderDetailPageClient: React.FC = () => {
                     </div>
                 </div>
                 
-                {/* 3. Dates & Payment Card (Col 3) */}
-                   <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
+                {/* 3. Dates & Payment Card */}
+                <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
                     <h3 className="text-lg font-semibold text-slate-700 flex items-center"><FaCalendarAlt className="mr-2" /> Key Dates</h3>
                     <div className="space-y-2 text-sm text-gray-600">
                         <p><strong>Placed On:</strong> {formatDate(order.created_at)}</p>
@@ -245,4 +246,4 @@ const AdminOrderDetailPageClient: React.FC = () => {
     );
 };
 
-export default AdminOrderDetailPageClient;
+export default AdminOrderDetailPage;

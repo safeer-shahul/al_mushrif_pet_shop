@@ -22,7 +22,29 @@ body, html, .app-font-strict {
   --color-text-dark: #1f2937;
 }
 
+*::-webkit-scrollbar-track {
+  background: #f0f0f0; /* Light gray background */
+}
 
+/* Thumb (the draggable part) */
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-primary); /* Dark Blue */
+  border-radius: 4px;
+}
+
+/* Thumb Hover/Active state */
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-primary-light); /* Bright Blue Accent */
+}
+
+/* 2. Firefox Browsers */
+
+/* Set scrollbar style for all elements */
+* {
+  /* scrollbar-color: <thumb-color> <track-color> */
+  scrollbar-color: var(--color-primary) #f0f0f0;
+  scrollbar-width: thin;
+}
 
 @layer base {
   /* Enforce a light theme background and text color globally */

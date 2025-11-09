@@ -1,24 +1,22 @@
-// src/components/admin/offer/OfferForm.tsx (FULL CODE)
+// src/components/admin/offer/OfferForm.tsx 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaSave, FaTimes, FaDollarSign, FaBoxes, FaPlus, FaTrash, FaInfoCircle, FaSearch, FaSpinner, FaShoppingCart } from 'react-icons/fa';
+import { FaSave, FaTimes, FaBoxes, FaPlus, FaTrash, FaInfoCircle, FaSearch, FaSpinner, FaShoppingCart } from 'react-icons/fa';
 import { Offer, OfferType } from '@/types/offer'; 
 import { useOfferService } from '@/services/admin/offerService'; 
 import { Product } from '@/types/product'; 
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ImageUploadField from '@/components/ui/ImageUploadField';
 import { useCategoryService } from '@/services/admin/categoryService';
 
 interface OfferFormProps {
-    // Allows initialData to include Product objects for display purposes
     initialData?: Partial<Offer> & { products_details?: Product[] };
     isEditMode: boolean;
-    // Passes the transient File field (offer_image_file) and removal flag
     onSave: (data: Partial<Offer> & { offer_image_file?: File | null, offer_image_removed?: boolean }) => Promise<void>; 
     isLoading: boolean;
-    error: string | null;
+    error: string | null; // API error from parent component
 }
 
 const OFFER_TYPES: { value: OfferType, label: string }[] = [
@@ -62,13 +60,10 @@ const OfferForm: React.FC<OfferFormProps> = ({
 
     // Image Preview URL logic
     const imagePreviewUrl = useMemo(() => {
-        // Uses the actual 'offer_image' property (string path from DB)
         return initialData?.offer_image ? getStorageUrl(initialData.offer_image) : null;
     }, [initialData?.offer_image, getStorageUrl]);
 
     useEffect(() => {
-    // If the incoming data changes and is different from the current state (i.e., new data arrived)
-    // We update the local state. Checking the ID is usually enough to detect a change.
         if (initialData?.id !== formData.id) {
             setFormData(initialData || { 
                 type: 'percentage', 
@@ -84,14 +79,11 @@ const OfferForm: React.FC<OfferFormProps> = ({
     const productDetailsMap = useMemo(() => {
         const map = new Map<string, Product>();
         
-        // Use products_details if available (assumed API provides it or parent page loads it)
         if (initialData?.products_details) {
             initialData.products_details.forEach(p => {
-                // p is guaranteed to be a Product object here due to the interface definition
                 map.set(p.id, p);
             });
         }
-        // Add search results
         searchResults.forEach(p => map.set(p.id, p));
         return map;
     }, [initialData, searchResults]);
@@ -121,7 +113,6 @@ const OfferForm: React.FC<OfferFormProps> = ({
 
     // Sync initial data (and clear transient states)
     useEffect(() => {
-    // This only runs when initialData object reference changes.
         setFormData(initialData || { type: 'percentage', products: [] }); 
         setImageFile(null);
         setImageRemoved(false);
@@ -174,8 +165,9 @@ const OfferForm: React.FC<OfferFormProps> = ({
     const handleSelectProduct = (product: Product) => {
         const productIdToAdd = product.id; 
         
+        // 💡 Client-side check for current offer products
         if (isProductAlreadyAdded(productIdToAdd)) {
-            setLocalError('Product already added.');
+            setLocalError('Product already added to this offer.'); // Updated error message
             return;
         }
 
@@ -207,7 +199,7 @@ const OfferForm: React.FC<OfferFormProps> = ({
         e.preventDefault();
         setLocalError(null);
         
-        // --- Validation Checks (Assumed correct based on previous iterations) ---
+        // --- Validation Checks ---
         if (!formData.offer_name?.trim()) {
             setLocalError('Offer Name is required.');
             return;
@@ -232,12 +224,18 @@ const OfferForm: React.FC<OfferFormProps> = ({
              setLocalError('Minimum Cart Amount is required for this offer type.');
             return;
         }
+        
+        // Product validation for Product-level offers
+        if (!isCartLevelDiscount && (!formData.products || formData.products.length === 0)) {
+            setLocalError('At least one product must be associated with this offer type.');
+            return;
+        }
         // --- End Validation Checks ---
 
         // Pass the transient file field name to the parent page
         await onSave({
             ...formData,
-            offer_image_file: imageFile, // Renamed file object
+            offer_image_file: imageFile, 
             offer_image_removed: imageRemoved,
         });
     };
@@ -329,24 +327,24 @@ const OfferForm: React.FC<OfferFormProps> = ({
                     
                     {/* Cart-Total Minimum Amount Field */}
                     {isCartLevelDiscount && (
-                         <div className="space-y-2 col-span-2">
-                            <label htmlFor="min_cart_amount" className="block text-sm font-medium text-slate-700 flex items-center">
-                                <FaShoppingCart className='mr-2 text-blue-500' />
-                                Minimum Cart Amount Required (AED) <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                id="min_cart_amount"
-                                type="number"
-                                step="0.01"
-                                name="min_cart_amount" 
-                                value={formData.min_cart_amount || ''} 
-                                onChange={handleChange}
-                                required
-                                placeholder="e.g., 500.00"
-                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg"
-                                disabled={isDisabled}
-                            />
-                        </div>
+                           <div className="space-y-2 col-span-2">
+                                <label htmlFor="min_cart_amount" className="block text-sm font-medium text-slate-700 flex items-center">
+                                    <FaShoppingCart className='mr-2 text-blue-500' />
+                                    Minimum Cart Amount Required (AED) <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    id="min_cart_amount"
+                                    type="number"
+                                    step="0.01"
+                                    name="min_cart_amount" 
+                                    value={formData.min_cart_amount || ''} 
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="e.g., 500.00"
+                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg"
+                                    disabled={isDisabled}
+                                />
+                            </div>
                     )}
                     
                     {/* Percentage Discount / Fixed Amount Off */}

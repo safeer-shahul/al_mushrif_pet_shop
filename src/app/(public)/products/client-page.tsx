@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { FaFilter, FaList, FaAngleRight, FaSpinner, FaSort } from 'react-icons/fa';
+import { FaFilter, FaSpinner, FaSort, FaChevronDown } from 'react-icons/fa';
 import { usePublicProductService, ProductQueryParams } from '@/services/public/productService';
 import { useCategoryService } from '@/services/admin/categoryService';
 import { RootCategory } from '@/types/category';
@@ -13,21 +13,27 @@ import CategorySlider from '@/components/public/CategorySlider';
 import { useCart } from '@/context/CartContext';
 
 // Define the primary color variable for easy styling consistency
-const PRIMARY_COLOR = 'var(--color-primary, #FF6B35)';
+const PRIMARY_COLOR = 'var(--color-primary, #003a8c)';
 
 // --- Main Product Listing Page ---
-// Renamed component
 const ProductListingPageClient: React.FC = () => {
     const router = useRouter();
-    // CRITICAL: useSearchParams() is the hook requiring the Suspense boundary in the parent.
     const searchParams = useSearchParams();
     const { fetchProducts } = usePublicProductService();
     const { fetchAllRootCategories } = useCategoryService();
     const { setIsCartDrawerOpen } = useCart();
 
-    const [productsData, setProductsData] = useState<any | null>(null);
+    // State for Product Data & Pagination
+    const [products, setProducts] = useState<any[]>([]);
+    const [pagination, setPagination] = useState({
+        current_page: 0,
+        last_page: 1,
+        total: 0,
+    });
+    
     const [allCategories, setAllCategories] = useState<RootCategory[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -38,15 +44,21 @@ const ProductListingPageClient: React.FC = () => {
         offer_id: searchParams.get('offer_id') || undefined,
         search: searchParams.get('search') || undefined,
         page: 1,
-        sort: 'latest',
+        sort: searchParams.get('sort') || 'latest',
     });
 
-    // --- Data Fetcher ---
-    const loadData = useCallback(async (filters: ProductQueryParams) => {
-        setLoading(true);
+    // --- Data Fetcher (Handles initial load and "Load More") ---
+    const loadData = useCallback(async (filters: ProductQueryParams, append: boolean = false) => {
+        
+        if (!append) {
+            setLoading(true);
+        } else {
+            setLoadingMore(true);
+        }
+
         setApiError(null);
+        
         try {
-            // Filter out empty/null parameters
             const validFilters = Object.fromEntries(
                 Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== '')
             ) as ProductQueryParams;
@@ -55,19 +67,30 @@ const ProductListingPageClient: React.FC = () => {
                 fetchProducts(validFilters),
                 fetchAllRootCategories()
             ]);
-            setProductsData(productData);
-            setAllCategories(categoryData);
+            
+            // PAGINATION/APPEND LOGIC
+            setProducts(prev => append ? [...prev, ...productData.data] : productData.data);
+            setPagination({
+                current_page: productData.current_page,
+                last_page: productData.last_page,
+                total: productData.total,
+            });
+            
+            if (!append) {
+                setAllCategories(categoryData);
+            }
+            
         } catch (err: any) {
             setApiError(err.message || 'Failed to load products or category structure.');
-            setProductsData(null);
-            setAllCategories([]);
+            if (!append) setProducts([]); 
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
     }, [fetchProducts, fetchAllRootCategories]);
 
 
-    // 💡 FIX 1: Sync state from URL parameters (runs whenever URL changes)
+    // 1. Sync state from URL parameters (runs whenever URL changes)
     useEffect(() => {
         const newCategoryId = searchParams.get('category_id');
         const newBrandId = searchParams.get('brand_id');
@@ -76,6 +99,7 @@ const ProductListingPageClient: React.FC = () => {
         const newSort = searchParams.get('sort');
 
         setCurrentFilters(prev => {
+            // Check if any primary filter/sort parameter has changed
             if (newCategoryId !== prev.category_id ||
                 newBrandId !== prev.brand_id ||
                 newOfferId !== prev.offer_id ||
@@ -89,23 +113,42 @@ const ProductListingPageClient: React.FC = () => {
                     offer_id: newOfferId || undefined,
                     search: newSearch || undefined,
                     sort: newSort || 'latest',
-                    page: 1,
+                    page: 1, // Always reset pagination on filter change
                 };
             }
             return prev;
         });
-
     }, [searchParams]);
 
 
-    // 💡 FIX 2: Trigger data fetch only when currentFilters state changes
+    // 2. Trigger initial data fetch/refresh when currentFilters (page=1) changes
     useEffect(() => {
-        loadData(currentFilters);
+        if (currentFilters.page === 1) {
+             loadData(currentFilters, false);
+        }
     }, [currentFilters, loadData]);
+    
+    
+    // --- Load More Handler ---
+    const handleLoadMore = () => {
+        if (pagination.current_page < pagination.last_page && !loadingMore) {
+            const nextPage = pagination.current_page + 1;
+            
+            // 1. Update client-side filters state with the new page number
+            setCurrentFilters(prev => ({
+                ...prev,
+                page: nextPage
+            }));
+            
+            // 2. Load data for the new page and append results
+            loadData({ ...currentFilters, page: nextPage }, true);
+        }
+    };
 
 
     // --- Filter Handler (Used by Filter Drawer/Sort Dropdown) ---
     const handleFilterChange = (newFilters: Partial<ProductQueryParams>) => {
+        // Reset pagination to page 1 whenever a new filter or sort is applied
         setCurrentFilters(prev => ({
             ...prev,
             ...newFilters,
@@ -115,8 +158,9 @@ const ProductListingPageClient: React.FC = () => {
 
     // --- Title Logic ---
     const getActiveTitle = () => {
-        if (currentFilters.search) return `Search Results for "${currentFilters.search}"`;
+        if (currentFilters.sort === 'latest' && !currentFilters.search && !currentFilters.offer_id) return 'New Arrivals';
         if (currentFilters.offer_id) return 'Special Offers';
+        if (currentFilters.search) return `Search Results for "${currentFilters.search}"`;
         if (currentFilters.brand_id) return 'Shop by Brand';
         if (currentFilters.category_id) {
             return 'Shop Categories';
@@ -147,14 +191,14 @@ const ProductListingPageClient: React.FC = () => {
 
             <div className="space-y-6">
 
-                {/* Product Count & Controls (NEW LAYOUT) */}
+                {/* Product Count & Controls */}
                 <div className='flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-gray-50 border border-gray-200 rounded-xl shadow-sm'>
                     <h2 className='text-lg font-semibold text-slate-700 mb-3 sm:mb-0'>
-                        {loading ? <FaSpinner className='animate-spin inline mr-2 text-gray-500' /> :
-                            <span>{productsData?.total || 0} Products Found</span>}
+                        {loading && products.length === 0 ? <FaSpinner className='animate-spin inline mr-2 text-gray-500' /> :
+                            <span>{pagination.total || 0} Products Found</span>}
                     </h2>
 
-                    {/* Filter/Sort Controls Group - Always visible, but stacked on mobile */}
+                    {/* Filter/Sort Controls Group */}
                     <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
 
                         {/* 1. Mobile Filter Button (Styled with PRIMARY_COLOR) */}
@@ -192,21 +236,41 @@ const ProductListingPageClient: React.FC = () => {
                 {/* Product Grid */}
                 <section>
 
-                    {loading ? (
+                    {loading && products.length === 0 ? (
                         <LoadingSpinner />
-                    ) : productsData && productsData.data.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
-                            {productsData.data.map((product: any) => (
-                                <ProductCard key={product.id} product={product} />
-                            ))}
-                        </div>
+                    ) : products.length > 0 ? (
+                        <>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
+                                {products.map((product: any) => (
+                                    <ProductCard key={product.id} product={product} />
+                                ))}
+                            </div>
+                            
+                            {/* LOAD MORE BUTTON */}
+                            {pagination.current_page < pagination.last_page && (
+                                <div className="text-center mt-8">
+                                    <button
+                                        onClick={handleLoadMore}
+                                        disabled={loadingMore}
+                                        className="px-6 py-3 bg-[var(--color-primary)] text-white font-semibold rounded-lg shadow-md hover:opacity-90 transition-opacity disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                        style={{ backgroundColor: PRIMARY_COLOR }}
+                                    >
+                                        {loadingMore ? (
+                                            <FaSpinner className="animate-spin inline mr-2" />
+                                        ) : (
+                                            <FaChevronDown className="inline mr-2" />
+                                        )}
+                                        {loadingMore ? 'Loading More...' : `Load More (${pagination.current_page} of ${pagination.last_page} pages loaded)`}
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <div className="p-10 bg-white rounded-xl shadow-lg text-center text-slate-500 border border-dashed border-gray-300">
                             <p className='text-lg font-medium'>No products match your current selection.</p>
                             <p className='text-sm mt-2'>Try clearing some filters or changing your search term.</p>
                         </div>
                     )}
-                    {/* Pagination component would go here */}
                 </section>
             </div>
 

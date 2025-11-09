@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { FaSync, FaEye, FaBox, FaTruck, FaCheckCircle, FaTimes, FaSpinner, FaUsers } from 'react-icons/fa';
+import { FaSync, FaEye, FaBox, FaSpinner, FaUsers } from 'react-icons/fa';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { toast } from 'react-hot-toast';
 import { useAdminOrderService } from '@/services/admin/orderService';
@@ -11,25 +11,6 @@ import { Order } from '@/types/order';
 
 // Define the valid statuses array
 const STATUSES = ['Pending Confirmation', 'Packed', 'Shipped', 'Delivered', 'Cancelled'];
-
-// --- Placeholder for AdminOrderService Hook ---
-// NOTE: You must ensure you have a hook that handles the API calls to:
-// GET /admin/orders/all
-// PUT /admin/orders/{id}/status
-const useAdminOrderServicePlaceholder = () => {
-    const { token } = { token: 'admin_token' }; // Placeholder token access
-    const apiClient = {
-        get: async (url: string) => ({ data: JSON.parse(localStorage.getItem('mockOrders') || '[]') }),
-        put: async (url: string, data: any) => {
-            console.log(`Mock API PUT: ${url}`, data);
-            return { data: { message: 'Status updated (mock)', order: { id: 'mock', status: data.status } } };
-        }
-    };
-    
-    // In a real app, use the actual useAdminOrderService hook
-    return useAdminOrderService();
-}
-
 
 const AdminOrderListPage: React.FC = () => {
     const { fetchAllOrders, updateOrderStatus } = useAdminOrderService(); 
@@ -94,7 +75,6 @@ const AdminOrderListPage: React.FC = () => {
     const formatPrice = (price: number | string) => {
         return `AED ${parseFloat(String(price)).toFixed(2)}`;
     };
-
 
     if (loading && orders.length === 0) {
         return <LoadingSpinner />;
@@ -161,7 +141,7 @@ const AdminOrderListPage: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end space-x-2">
                                                 {/* View Button */}
-                                                <Link href={`/mushrif-admin/orders/${order.id}`}>
+                                                <Link href={`/mushrif-admin/orders/detail?id=${order.id}`}>
                                                     <button className="p-1.5 bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 transition-colors" title="View Details">
                                                         <FaEye className='w-4 h-4' />
                                                     </button>
