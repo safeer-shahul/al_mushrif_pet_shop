@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { FaTimes, FaShoppingCart, FaMapMarkerAlt, FaCheckCircle, FaLock, FaSpinner, FaTruck } from 'react-icons/fa';
+import { FaTimes, FaShoppingCart, FaCheckCircle, FaLock, FaSpinner, FaTruck } from 'react-icons/fa';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { useCheckoutService } from '@/services/public/checkoutService';
@@ -80,6 +80,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
             setCurrentStep('ADDRESS');
             setOrderConfirmation(null);
             setLocalError(null);
+            setOrderPlacing(false); // Ensure placing is false on open
             
             // Auto-select first address if user has addresses and none is selected
             if (user?.addresses && user.addresses.length > 0 && !selectedAddress) {
@@ -98,23 +99,24 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
     }, [isOpen, isAuthenticated, cart, payablePrice, user?.addresses]);
 
 
-    // Handler to initiate the order POST request
+    // Handler to initiate the order POST request (UI FREEZE FIX IMPLEMENTED HERE)
     const handlePlaceOrder = useCallback(async () => {
         if (!selectedAddress?.id) {
             toast.error("A valid shipping address must be selected.");
             return;
         }
 
-        const isCartValid = await validateCart();
-        if (!isCartValid) {
-            toast.error("Cart validation failed. Please review your cart items.");
-            return;
-        }
-
-        setOrderPlacing(true);
+        setOrderPlacing(true); // <-- Set placing true
         setLocalError(null);
 
         try {
+            const isCartValid = await validateCart();
+            if (!isCartValid) {
+                toast.error("Cart validation failed. Please review your cart items.");
+                setCurrentStep('CONFIRMATION_REVIEW');
+                return; // Exits the try block, hits the finally block
+            }
+
             // Assuming placeOrder sends the required data including address ID and uses COD by default
             const response = await placeOrder(selectedAddress.id);
 
@@ -127,9 +129,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
 
         } catch (error: any) {
             setLocalError(error.message || 'Failed to place order. Please try again.');
-            setOrderPlacing(false);
-            // Stay on the Confirmation Review step for user to try again
             setCurrentStep('CONFIRMATION_REVIEW');
+        } finally {
+            // CRITICAL FIX: Ensure orderPlacing is always reset, regardless of success or failure.
+            setOrderPlacing(false); 
         }
     }, [selectedAddress, placeOrder, fetchCart, validateCart]);
 
@@ -139,18 +142,18 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
     const renderCurrentStep = () => {
         if (localError && currentStep !== 'ORDER_SUCCESS') {
              return (
-                <div className="text-center p-8 space-y-4">
-                    <FaTimes className="w-16 h-16 mx-auto text-red-500" />
-                    <h2 className="text-2xl font-bold text-red-700">Cannot Proceed</h2>
-                    <p className="text-slate-700">{localError}</p>
-                    <button
-                        onClick={onClose}
-                        className="mt-6 px-6 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700"
-                    >
-                        Close & Review Cart
-                    </button>
-                </div>
-            );
+                 <div className="text-center p-8 space-y-4">
+                     <FaTimes className="w-16 h-16 mx-auto text-red-500" />
+                     <h2 className="text-2xl font-bold text-red-700">Cannot Proceed</h2>
+                     <p className="text-slate-700">{localError}</p>
+                     <button
+                         onClick={onClose}
+                         className="mt-6 px-6 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700"
+                     >
+                         Close & Review Cart
+                     </button>
+                 </div>
+             );
         }
         
         if (cartLoading) {
@@ -229,17 +232,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                 {/* Header and Step Indicator */}
                 <div className="border-b border-gray-200 mb-2 pb-2">
                     <div className="flex justify-between items-center mb-4">
-                         <h3 className="text-2xl font-bold text-slate-800 flex items-center">
-                            <FaShoppingCart className="mr-2 w-6 h-6 text-[var(--color-primary,#FF6B35)]" />
-                            Checkout
-                        </h3>
-                         <button
-                            className="text-gray-400 hover:text-gray-600 p-1"
-                            onClick={onClose}
-                            disabled={orderPlacing}
-                        >
-                            <FaTimes className="w-5 h-5" />
-                        </button>
+                           <h3 className="text-2xl font-bold text-slate-800 flex items-center">
+                                <FaShoppingCart className="mr-2 w-6 h-6 text-[var(--color-primary,#FF6B35)]" />
+                                Checkout
+                            </h3>
+                           <button
+                                className="text-gray-400 hover:text-gray-600 p-1"
+                                onClick={onClose}
+                                disabled={orderPlacing} // Disabled while placing the order
+                            >
+                                <FaTimes className="w-5 h-5" />
+                            </button>
                     </div>
 
                     {/* Step Progress Bar (Hidden on success) */}
@@ -262,13 +265,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                                             {step.title.split('. ')[1]}
                                         </span>
                                     </div>
-
-                                    {/* Separator Line */}
-                                    {/* {index < arr.length - 1 && (
-                                        <div className={`flex-1 h-0.5 absolute top-[18px] transition-colors duration-500 ${
-                                            currentStepIndex > step.stepIndex ? 'bg-[var(--color-primary,#FF6B35)]' : 'bg-gray-300'
-                                        }`} style={{ left: `${(index / (arr.length - 1)) * 100 / 2 + 10}%`, right: `${(1 - (index / (arr.length - 1))) * 100 / 2 + 10}%` }} />
-                                    )} */}
                                 </React.Fragment>
                             ))}
                         </div>

@@ -1,4 +1,3 @@
-// src/app/(admin)/mushrif-admin/orders/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -13,12 +12,12 @@ import { Order } from '@/types/order';
 const STATUSES = ['Pending Confirmation', 'Packed', 'Shipped', 'Delivered', 'Cancelled'];
 
 const AdminOrderListPage: React.FC = () => {
-    const { fetchAllOrders, updateOrderStatus } = useAdminOrderService(); 
+    const { fetchAllOrders } = useAdminOrderService(); // Removed updateOrderStatus as it's not used in this view anymore
     
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+    // Removed statusUpdatingId state as status updates are moved to the detail page
 
     const loadOrders = useCallback(async () => {
         setLoading(true);
@@ -37,28 +36,6 @@ const AdminOrderListPage: React.FC = () => {
     useEffect(() => {
         loadOrders();
     }, [loadOrders]);
-
-    // --- Status Change Handler ---
-    const handleStatusChange = async (orderId: string, newStatus: string) => {
-        const orderName = orders.find(o => o.id === orderId)?.id || 'Order';
-
-        if (newStatus === 'Cancelled' && !window.confirm(`Are you sure you want to CANCEL order ${orderName}?`)) {
-            return;
-        }
-
-        setStatusUpdatingId(orderId);
-        try {
-            // This calls the backend route where inventory deduction happens on 'Shipped'
-            await updateOrderStatus(orderId, newStatus);
-            toast.success(`Status for ${orderName} updated to ${newStatus}.`);
-            await loadOrders(); // Refresh the list
-        } catch (err: any) {
-            const message = err.message || `Failed to update status for ${orderName}.`;
-            toast.error(message);
-        } finally {
-            setStatusUpdatingId(null);
-        }
-    };
 
     // --- Utility Functions ---
     const getStatusColor = (status: string) => {
@@ -133,11 +110,13 @@ const AdminOrderListPage: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm font-semibold text-slate-800">{formatPrice(order.payable_price)}</span>
                                         </td>
+                                        {/* REMOVED STATUS DROPDOWN, REPLACED WITH BADGE */}
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
                                                 {order.status}
                                             </span>
                                         </td>
+                                        
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end space-x-2">
                                                 {/* View Button */}
@@ -146,27 +125,6 @@ const AdminOrderListPage: React.FC = () => {
                                                         <FaEye className='w-4 h-4' />
                                                     </button>
                                                 </Link>
-                                                
-                                                {/* Status Dropdown */}
-                                                <select
-                                                    value={order.status}
-                                                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                                                    disabled={order.status === 'Delivered' || order.status === 'Cancelled' || statusUpdatingId === order.id}
-                                                    className={`py-1.5 pl-2 pr-8 text-xs border rounded-md focus:ring-blue-500 focus:border-blue-500 
-                                                        ${getStatusColor(order.status).replace('text-', 'border-').replace('bg-', 'bg-')}
-                                                    `}
-                                                >
-                                                    {STATUSES.map(status => (
-                                                        <option key={status} value={status}>
-                                                            {status}
-                                                        </option>
-                                                    ))}
-                                                </select>
-
-                                                {/* Loading Spinner */}
-                                                {statusUpdatingId === order.id && (
-                                                    <FaSpinner className="animate-spin text-blue-500" />
-                                                )}
                                             </div>
                                         </td>
                                     </tr>

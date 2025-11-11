@@ -7,7 +7,6 @@ import { Order } from '@/types/order';
 const ADMIN_ORDER_API_ENDPOINT = '/admin/orders/all';
 const ADMIN_STATUS_API_ENDPOINT = '/admin/orders';
 const ADMIN_DETAIL_API_ENDPOINT = '/admin/orders'; 
-// CRITICAL FIX: Point to the new public route. This is correct.
 const ORDER_STATIC_EXPORT_ENDPOINT = '/public/order-ids'; 
 
 // ---------------------------------------------------------------------
@@ -37,7 +36,7 @@ export const fetchAllOrderIdsForStaticExport = async (): Promise<string[]> => {
 }
 
 // ---------------------------------------------------------------------
-// 2. AUTHENTICATED HOOK (useAdminOrderService) - (Unchanged)
+// 2. AUTHENTICATED HOOK (useAdminOrderService)
 // ---------------------------------------------------------------------
 
 /**
@@ -67,6 +66,19 @@ export const useAdminOrderService = () => {
     }, [getClient]);
 
     /**
+     * Fetches details for a specific order.
+     */
+    const fetchOrderById = useCallback(async (id: string): Promise<Order> => {
+        const api = getClient();
+        try {
+            const response = await api.get<Order>(`${ADMIN_DETAIL_API_ENDPOINT}/${id}`); 
+            return response.data;
+        } catch (error: any) {
+            throw new Error(error.response?.data?.message || 'Failed to load order details.');
+        }
+    }, [getClient]);
+
+    /**
      * Updates the status of a specific order.
      */
     const updateOrderStatus = useCallback(async (id: string, status: string, cancelReason?: string) => {
@@ -88,13 +100,24 @@ export const useAdminOrderService = () => {
         }
     }, [getClient]);
 
-    const fetchOrderById = useCallback(async (id: string): Promise<Order> => {
+    /**
+     * 💡 Returns specified quantities of product items to stock.
+     */
+    const returnStock = useCallback(async (id: string, itemsToReturn: { variant_id: string, quantity: number }[]) => {
         const api = getClient();
         try {
-            const response = await api.get<Order>(`${ADMIN_DETAIL_API_ENDPOINT}/${id}`); 
+            await getCsrfToken();
+            
+            const payload = { 
+                items_to_return: itemsToReturn,
+            };
+            
+            // Hitting the new POST endpoint /admin/orders/{id}/return-stock
+            const response = await api.post(`${ADMIN_DETAIL_API_ENDPOINT}/${id}/return-stock`, payload);
             return response.data;
         } catch (error: any) {
-            throw new Error(error.response?.data?.message || 'Failed to load order details.');
+            const message = error.response?.data?.message || error.message || 'Failed to return stock.';
+            throw new Error(message);
         }
     }, [getClient]);
 
@@ -102,5 +125,6 @@ export const useAdminOrderService = () => {
         fetchAllOrders,
         updateOrderStatus,
         fetchOrderById,
+        returnStock,
     };
 };

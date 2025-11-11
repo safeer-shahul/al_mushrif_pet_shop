@@ -11,16 +11,16 @@ interface AddressFormProps {
     onSaveSuccess: (address: Address) => void;
     onCancel: () => void;
     // Boolean to control saving state globally for the modal
-    isSaving: boolean; 
+    isSaving: boolean;
     setIsSaving: (saving: boolean) => void;
 }
 
-const AddressForm: React.FC<AddressFormProps> = ({ 
-    initialData, 
-    onSaveSuccess, 
-    onCancel, 
+const AddressForm: React.FC<AddressFormProps> = ({
+    initialData,
+    onSaveSuccess,
+    onCancel,
     isSaving,
-    setIsSaving 
+    setIsSaving
 }) => {
     const { createAddress, updateAddress } = useAddressService();
     const isEditMode = !!initialData?.id;
@@ -47,15 +47,15 @@ const AddressForm: React.FC<AddressFormProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLocalError(null);
-        
-        // Basic validation
-        if (!formData.address_line1 || !formData.zip_pin || (formData.phone_numbers?.length === 0)) {
-            setLocalError("Please fill in Address Line 1, Zip Code, and at least one Phone Number.");
+
+        // Basic validation: zip_pin is now optional
+        if (!formData.address_line1 || (formData.phone_numbers?.length === 0)) {
+            setLocalError("Please fill in Address Line 1 and at least one Phone Number.");
             return;
         }
-        
+
         setIsSaving(true);
-        
+
         try {
             let savedAddress: Address;
             const payload = { ...formData, is_default: formData.is_default || false }; // Ensure is_default is sent
@@ -77,7 +77,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
             setIsSaving(false);
         }
     };
-    
+
     const isDisabled = isSaving;
 
     return (
@@ -85,9 +85,9 @@ const AddressForm: React.FC<AddressFormProps> = ({
             <h3 className="text-lg md:text-2xl font-bold text-slate-800 pb-3 mb-2 flex items-center">
                 <FaMapMarkerAlt className='mr-2 text-[var(--color-primary,#FF6B35)]' /> {isEditMode ? 'Edit Shipping Address' : 'Add New Address'}
             </h3>
-            
+
             {localError && <div className="p-3 bg-red-100 text-red-700 text-sm rounded-lg flex items-center"><FaTimes className='mr-2' /> {localError}</div>}
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Address Line 1 */}
                 <div className="space-y-1">
@@ -104,7 +104,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
                         disabled={isDisabled}
                     />
                 </div>
-                
+
                 {/* Address Line 2 */}
                 <div className="space-y-1">
                     <label htmlFor="address_line2" className="block text-sm font-medium text-slate-700">Address Line 2 (Optional)</label>
@@ -119,7 +119,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
                         disabled={isDisabled}
                     />
                 </div>
-                
+
                 {/* Street / Area */}
                 <div className="space-y-1">
                     <label htmlFor="street" className="block text-sm font-medium text-slate-700">Street / Area</label>
@@ -134,10 +134,11 @@ const AddressForm: React.FC<AddressFormProps> = ({
                         disabled={isDisabled}
                     />
                 </div>
-                
-                {/* Zip / Pin Code */}
+
+                {/* Zip / Pin Code (NOW OPTIONAL) */}
                 <div className="space-y-1">
-                    <label htmlFor="zip_pin" className="block text-sm font-medium text-slate-700">Zip / Pin Code <span className="text-red-500">*</span></label>
+                    {/* Updated Label: Removed '*' */}
+                    <label htmlFor="zip_pin" className="block text-sm font-medium text-slate-700">Zip / Pin Code</label>
                     <input
                         type="text"
                         id="zip_pin"
@@ -146,7 +147,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
                         onChange={handleChange}
                         placeholder="e.g., 12345"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        required
+                        // Updated Input: Removed 'required'
                         disabled={isDisabled}
                     />
                 </div>
@@ -198,11 +199,10 @@ const AddressForm: React.FC<AddressFormProps> = ({
                 </button>
                 <button
                     type="submit"
-                    className={`px-6 py-2 text-white font-medium rounded-lg flex items-center transition-colors shadow-md ${
-                        isDisabled 
-                            ? 'bg-gray-400 cursor-not-allowed' 
+                    className={`px-6 py-2 text-white font-medium rounded-lg flex items-center transition-colors shadow-md ${isDisabled
+                            ? 'bg-gray-400 cursor-not-allowed'
                             : 'bg-[var(--color-primary,#FF6B35)] hover:bg-[var(--color-primary,#FF6B35)]/90'
-                    }`}
+                        }`}
                     disabled={isDisabled}
                 >
                     {isSaving ? <FaSpinner className='animate-spin mr-2' /> : <FaSave className='mr-2' />}

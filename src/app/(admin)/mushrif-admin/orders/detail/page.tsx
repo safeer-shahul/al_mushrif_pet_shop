@@ -3,17 +3,18 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FaArrowLeft, FaTruck, FaDollarSign, FaUser, FaMapMarkerAlt, FaCalendarAlt, FaCheckCircle, FaTimesCircle, FaBoxOpen, FaCube, FaSpinner } from 'react-icons/fa';
+import { FaArrowLeft, FaTruck, FaDollarSign, FaUser, FaMapMarkerAlt, FaCalendarAlt, FaCheckCircle, FaTimesCircle, FaBoxOpen, FaCube, FaSpinner, FaWarehouse } from 'react-icons/fa';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAdminOrderService } from '@/services/admin/orderService';
 import { Order, OrderItem } from '@/types/order';
 import { useCategoryService } from '@/services/admin/categoryService'; 
 import { ProductImage } from '@/types/product'; 
+import ReturnStockModal from './ReturnStockModal'; // <<< NEW IMPORT
 
 const AdminOrderDetailPage: React.FC = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const orderId = searchParams.get('id'); // GET ID from '?id=...'
+    const orderId = searchParams.get('id'); 
     
     const { fetchOrderById, updateOrderStatus } = useAdminOrderService();
     const { getStorageUrl } = useCategoryService(); 
@@ -22,6 +23,7 @@ const AdminOrderDetailPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [statusUpdating, setStatusUpdating] = useState(false);
+    const [showReturnStockModal, setShowReturnStockModal] = useState(false); // <<< NEW STATE
 
     // --- Load Data ---
     const loadOrder = useCallback(async () => {
@@ -123,6 +125,18 @@ const AdminOrderDetailPage: React.FC = () => {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
+            {/* Return Stock Modal */}
+            {showReturnStockModal && order && (
+                <ReturnStockModal 
+                    order={order}
+                    onClose={() => setShowReturnStockModal(false)}
+                    onSuccess={() => {
+                        setShowReturnStockModal(false);
+                        loadOrder(); // Reload to reflect any stock change
+                    }}
+                />
+            )}
+
             {/* Header and Back Button */}
             <div className="flex justify-between items-center pb-4 border-b border-gray-200">
                 <h1 className="text-3xl font-bold text-slate-800 flex items-center">
@@ -133,6 +147,17 @@ const AdminOrderDetailPage: React.FC = () => {
                     <span className="text-lg font-semibold">Status:</span>
                     {getStatusIndicator(order.status)}
                     
+                    {/* Return Stock Button (Visible if order is processed/cancelled) */}
+                    {(order.status === 'Cancelled' || order.status === 'Shipped' || order.status === 'Delivered') && (
+                        <button
+                            onClick={() => setShowReturnStockModal(true)}
+                            className="px-4 py-2 text-sm text-indigo-600 bg-indigo-100 rounded-lg flex items-center hover:bg-indigo-200 transition-colors font-semibold disabled:opacity-50"
+                            disabled={statusUpdating}
+                        >
+                            <FaWarehouse className='mr-2' /> Return Stock
+                        </button>
+                    )}
+
                     <select
                         value={order.status}
                         onChange={(e) => handleStatusUpdate(e.target.value)}
