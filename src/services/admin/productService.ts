@@ -2,6 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
 import { Product, ProdVariant, ProductImage } from '@/types/product';
 import { useCallback } from 'react';
+import { AxiosRequestConfig } from 'axios'; // Import AxiosRequestConfig for passing params
 
 const PRODUCT_API_ENDPOINT = '/admin/products';
 const IMAGE_API_ENDPOINT = '/admin/images';
@@ -58,13 +59,20 @@ export const useProductService = () => {
     }, [storagePrefix]);
 
     // ---------------------------------------------------------------------
-    // PRODUCT CRUD OPERATIONS (JSON) - (Remaining functions are unchanged)
+    // PRODUCT CRUD OPERATIONS (JSON)
     // ---------------------------------------------------------------------
 
-    const fetchAllProducts = useCallback(async (): Promise<Product[]> => {
+    /**
+     * Fetches all products, now accepting optional filtering parameters.
+     */
+    const fetchAllProducts = useCallback(async (
+        params?: Record<string, string | boolean> // <--- FIX: Added optional params
+    ): Promise<Product[]> => {
         const api = getClient();
         try {
-            const response = await api.get<Product[]>(`${PRODUCT_API_ENDPOINT}?include=images`);
+            const config: AxiosRequestConfig = { params }; // Package params for Axios
+            // Append includes and use config to pass filters
+            const response = await api.get<Product[]>(`${PRODUCT_API_ENDPOINT}?include=images`, config); 
             return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to load product list.');

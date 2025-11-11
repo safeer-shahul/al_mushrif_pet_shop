@@ -30,7 +30,8 @@ const CHECKOUT_STEPS: { [key in CheckoutStep]: { title: string, icon: React.Elem
 };
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
-    const { cart, cartLoading, fetchCart, validateCart } = useCart();
+    // Ensure fetchCart is destructured here, though not called in handlePlaceOrder directly
+    const { cart, cartLoading, fetchCart, validateCart } = useCart(); 
     const { user, isAuthenticated } = useAuth();
     const { placeOrder } = useCheckoutService();
 
@@ -42,103 +43,112 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
 
     const currentStepIndex = CHECKOUT_STEPS[currentStep].stepIndex;
 
-    // Calculate totals
-    const { totalItemsPrice, totalDiscount } = useMemo(() => {
+    // Calculate totals - memoized to re-run only when cart changes
+    const { totalItemsPrice, totalDiscount, payablePrice, shippingFee } = useMemo(() => {
         let itemsPrice = 0;
         let discount = 0;
-        cart?.items.forEach(item => {
-            const price = parseFloat(String(item.variant.price || 0));
-            // Use offer_price if available and less than regular price
-            const offerPrice = parseFloat(String(item.variant.offer_price || 0));
+        
+        (cart?.items || []).forEach(item => {
+            const price = parseFloat(String(item.variant?.price || 0));
+            const offerPrice = parseFloat(String(item.variant?.offer_price || 0));
 
             itemsPrice += price * item.quantity;
             if (offerPrice > 0 && offerPrice < price) {
                 discount += (price - offerPrice) * item.quantity;
             }
         });
-        return { totalItemsPrice: itemsPrice, totalDiscount: discount };
-    }, [cart]);
+        
+        const fee = 0.00;
+        const payable = itemsPrice - discount + fee;
 
-    // Shipping is currently hardcoded as 0.00
-    const shippingFee = 0.00; 
-    const payablePrice = totalItemsPrice - totalDiscount + shippingFee;
+        return { 
+            totalItemsPrice: itemsPrice, 
+            totalDiscount: discount,
+            shippingFee: fee,
+            payablePrice: payable
+        };
+    }, [cart]);
 
     // Reset state and validate prerequisites when modal opens/closes
     useEffect(() => {
         if (isOpen) {
-            // Initial checks for immediate flow termination
+            // 1. Reset flow state to start
+            setCurrentStep('ADDRESS');
+            setOrderConfirmation(null);
+            setLocalError(null);
+            setOrderPlacing(false);
+            
+            // 2. Critical Pre-flight Checks 
             if (!isAuthenticated) {
                 setLocalError("You must be logged in to proceed to checkout.");
                 return;
             }
-            if (!cart || cart.items.length === 0 || payablePrice <= 0) {
-                 setLocalError("Your cart is empty or the total is invalid.");
+            if (!cart || (cart.items?.length ?? 0) === 0 || payablePrice <= 0) {
+                 setLocalError("Your cart is empty or the total is invalid. Please review your cart.");
                  return;
             }
 
-            // Reset flow state
-            setCurrentStep('ADDRESS');
-            setOrderConfirmation(null);
-            setLocalError(null);
-            setOrderPlacing(false); // Ensure placing is false on open
-            
-            // Auto-select first address if user has addresses and none is selected
-            if (user?.addresses && user.addresses.length > 0 && !selectedAddress) {
-                const defaultAddress = user.addresses.find(a => a.is_default) || user.addresses[0];
-                setSelectedAddress(defaultAddress);
+            // 3. Address Auto-selection 
+            if (user?.addresses && user.addresses.length > 0) {
+                if (!selectedAddress || !user.addresses.find(a => a.id === selectedAddress.id)) {
+                    const defaultAddress = user.addresses.find(a => a.is_default) || user.addresses[0];
+                    setSelectedAddress(defaultAddress);
+                }
             } else if (isAuthenticated && (!user?.addresses || user.addresses.length === 0)) {
-                 // Allow user to see the modal to add an address in AddressSelectionStep
+                setSelectedAddress(null);
             }
         } else {
-            // Full reset when closing
+            // Full cleanup when closing
             setCurrentStep('ADDRESS');
             setLocalError(null);
             setOrderConfirmation(null);
             setSelectedAddress(null);
+            setOrderPlacing(false);
         }
-    }, [isOpen, isAuthenticated, cart, payablePrice, user?.addresses]);
+    }, [isOpen, isAuthenticated, cart, payablePrice, user?.addresses]); 
 
-
-    // Handler to initiate the order POST request (UI FREEZE FIX IMPLEMENTED HERE)
+    // Handler to initiate the order POST request
     const handlePlaceOrder = useCallback(async () => {
         if (!selectedAddress?.id) {
             toast.error("A valid shipping address must be selected.");
             return;
         }
 
-        setOrderPlacing(true); // <-- Set placing true
+        setOrderPlacing(true); 
         setLocalError(null);
 
         try {
+            // 1. Re-validate cart state just before placing the order
             const isCartValid = await validateCart();
             if (!isCartValid) {
-                toast.error("Cart validation failed. Please review your cart items.");
+                toast.error("Cart validation failed. Your cart items may be out of stock or disabled.");
                 setCurrentStep('CONFIRMATION_REVIEW');
-                return; // Exits the try block, hits the finally block
+                return; 
             }
 
-            // Assuming placeOrder sends the required data including address ID and uses COD by default
-            const response = await placeOrder(selectedAddress.id);
+            // 2. Place Order API Call
+            const response = await placeOrder(selectedAddress.id); 
 
+            // 3. Set successful order data and transition step
             setOrderConfirmation(response.order);
             setCurrentStep('ORDER_SUCCESS');
             toast.success("Order placed successfully! Check your email for confirmation.");
 
-            // Clear the cart view
-            fetchCart();
-
+            // FIX: Removed fetchCart() here. The parent CartDrawer will call fetchCart() 
+            // when it receives the onClose signal, clearing the cart state at the correct moment.
+            
         } catch (error: any) {
+            // Handle error, display message, and revert to review step
             setLocalError(error.message || 'Failed to place order. Please try again.');
             setCurrentStep('CONFIRMATION_REVIEW');
         } finally {
-            // CRITICAL FIX: Ensure orderPlacing is always reset, regardless of success or failure.
+            // CRITICAL FIX: Ensure orderPlacing state is reset on all paths
             setOrderPlacing(false); 
         }
-    }, [selectedAddress, placeOrder, fetchCart, validateCart]);
+    }, [selectedAddress, placeOrder, validateCart]); 
 
 
     // --- Step Renderer ---
-
     const renderCurrentStep = () => {
         if (localError && currentStep !== 'ORDER_SUCCESS') {
              return (
@@ -209,6 +219,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                             </p>
                         </div>
                         <button
+                            // This button now correctly calls onClose to trigger the parent's fetchCart()
                             onClick={onClose}
                             className="w-full mt-6 px-6 py-3 bg-[var(--color-primary,#FF6B35)] text-white font-medium rounded-lg hover:bg-[var(--color-primary,#FF6B35)]/90 transition-colors"
                         >
@@ -232,11 +243,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                 {/* Header and Step Indicator */}
                 <div className="border-b border-gray-200 mb-2 pb-2">
                     <div className="flex justify-between items-center mb-4">
-                           <h3 className="text-2xl font-bold text-slate-800 flex items-center">
+                            <h3 className="text-2xl font-bold text-slate-800 flex items-center">
                                 <FaShoppingCart className="mr-2 w-6 h-6 text-[var(--color-primary,#FF6B35)]" />
                                 Checkout
                             </h3>
-                           <button
+                            <button
                                 className="text-gray-400 hover:text-gray-600 p-1"
                                 onClick={onClose}
                                 disabled={orderPlacing} // Disabled while placing the order

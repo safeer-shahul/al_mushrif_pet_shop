@@ -26,7 +26,6 @@ interface OfferListResponse {
 /**
  * UTILITY FUNCTION FOR NEXT.JS BUILD (Server-side compatible)
  * Fetches all offer IDs for generateStaticParams. Uses publicClient for build time execution.
- * NOTE: This relies on the new public route /public/offer-ids
  */
 export const fetchAllOfferIdsForStaticExport = async (): Promise<string[]> => {
     try {
@@ -57,8 +56,12 @@ export const useOfferService = () => {
 
     const fetchAllOffers = useCallback(async (): Promise<Offer[]> => {
         const api = getClient();
-        const response = await api.get<Offer[]>(OFFER_API_ENDPOINT); 
-        return response.data;
+        try {
+            const response = await api.get<Offer[]>(OFFER_API_ENDPOINT); 
+            return response.data;
+        } catch (error: any) {
+             throw new Error(error.response?.data?.message || 'Failed to load offers.');
+        }
     }, [getClient]);
     
     const fetchOfferById = useCallback(async (id: string): Promise<Offer> => {
@@ -81,6 +84,7 @@ export const useOfferService = () => {
         try {
             if (isUpdate && id) {
                 if (!formData.has('_method')) {
+                     // Laravel requires POST for file uploads, so we use _method=PUT to simulate a PUT request.
                      formData.append('_method', 'PUT');
                 }
                 const response = await api.post(`${OFFER_API_ENDPOINT}/${id}`, formData);
@@ -98,7 +102,11 @@ export const useOfferService = () => {
     const deleteOffer = useCallback(async (id: string) => {
         const api = getClient();
         await getCsrfToken();
-        await api.delete(`${OFFER_API_ENDPOINT}/${id}`);
+        try {
+            await api.delete(`${OFFER_API_ENDPOINT}/${id}`);
+        } catch (error: any) {
+             throw new Error(error.response?.data?.message || 'Failed to delete offer.');
+        }
     }, [getClient]);
 
     const searchProductsForDropdown = useCallback(async (searchQuery: string): Promise<PaginatedProductList> => {

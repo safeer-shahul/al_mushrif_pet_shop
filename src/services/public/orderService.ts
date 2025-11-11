@@ -14,6 +14,7 @@ export const usePublicOrderService = () => {
 
     const getClient = useCallback(() => {
         if (!isAuthenticated || !token) {
+            // Throwing an error here prevents unnecessary API calls if the user logs out.
             throw new Error("Authentication required for this operation.");
         }
         return createAuthenticatedClient(token);
@@ -29,7 +30,9 @@ export const usePublicOrderService = () => {
             const response = await api.get<Order[]>(USER_ORDER_API_ENDPOINT);
             return response.data;
         } catch (error: any) {
-            throw new Error(error.response?.data?.message || 'Failed to load order history.');
+            const msg = error.response?.data?.message || 'Failed to load order history.';
+            // Do not toast on fetch failure, let the page component handle display error.
+            throw new Error(msg);
         }
     }, [getClient]);
 
@@ -43,7 +46,9 @@ export const usePublicOrderService = () => {
             const response = await api.get<Order>(`${USER_ORDER_API_ENDPOINT}/${id}`);
             return response.data;
         } catch (error: any) {
-            throw new Error(error.response?.data?.message || 'Failed to load order details.');
+            const msg = error.response?.data?.message || 'Failed to load order details.';
+            // Do not toast on fetch failure, let the page component handle display error.
+            throw new Error(msg);
         }
     }, [getClient]);
     
@@ -58,12 +63,13 @@ export const usePublicOrderService = () => {
             const response = await api.post(`${USER_ORDER_API_ENDPOINT}/${id}/cancel`, {
                 cancel_reason: reason
             });
-            toast.success("Order successfully cancelled.");
+            // We keep toast here as cancellation is a direct user action.
+            toast.success("Order successfully cancelled."); 
             return response.data.order as Order;
         } catch (error: any) {
             const msg = error.response?.data?.message || 'Failed to cancel order.';
             toast.error(msg);
-            throw new Error(msg);
+            throw new Error(msg); // Throw to allow component state update (e.g., stopping the spinner)
         }
     }, [getClient]);
 

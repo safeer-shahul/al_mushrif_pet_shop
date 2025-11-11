@@ -3,6 +3,7 @@ import { createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
 import { useCallback } from 'react';
 import { getCsrfToken } from '@/utils/ApiClient'; 
 import { Order } from '@/types/order';
+import { AxiosRequestConfig } from 'axios'; // Import for Axios types
 
 const ADMIN_ORDER_API_ENDPOINT = '/admin/orders/all';
 const ADMIN_STATUS_API_ENDPOINT = '/admin/orders';
@@ -16,20 +17,14 @@ const ORDER_STATIC_EXPORT_ENDPOINT = '/public/order-ids';
 /**
  * UTILITY FUNCTION FOR NEXT.JS BUILD (Server-side compatible)
  * Fetches all order IDs for generateStaticParams. Uses publicClient.
- * NOTE: This relies on the new public route /public/order-ids
  */
 export const fetchAllOrderIdsForStaticExport = async (): Promise<string[]> => {
     try {
-        // Hitting the new public endpoint
         const response = await publicClient.get<string[]>(ORDER_STATIC_EXPORT_ENDPOINT); 
-
-        // The Laravel route returns a direct array of IDs
         const ids = Array.isArray(response.data) ? response.data : [];
-            
         return ids.map(id => id.toString());
         
     } catch (error) {
-        // Changing the error message to explicitly guide the user on the 404/401 fix path
         console.error('Failed to fetch Order IDs for static export (404/401 - Check Laravel routing/middleware):', error);
         return []; 
     }
@@ -53,12 +48,13 @@ export const useAdminOrderService = () => {
     }, [token]);
 
     /**
-     * Fetches the list of all orders.
+     * Fetches the list of all orders, optionally filtered by status or search term.
      */
-    const fetchAllOrders = useCallback(async (): Promise<Order[]> => {
+    const fetchAllOrders = useCallback(async (params?: Record<string, string>): Promise<Order[]> => {
         const api = getClient();
         try {
-            const response = await api.get<Order[]>(ADMIN_ORDER_API_ENDPOINT);
+            const config: AxiosRequestConfig = { params }; // Pass parameters to Axios
+            const response = await api.get<Order[]>(ADMIN_ORDER_API_ENDPOINT, config);
             return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to load orders.');
@@ -101,7 +97,7 @@ export const useAdminOrderService = () => {
     }, [getClient]);
 
     /**
-     * 💡 Returns specified quantities of product items to stock.
+     * Returns specified quantities of product items to stock.
      */
     const returnStock = useCallback(async (id: string, itemsToReturn: { variant_id: string, quantity: number }[]) => {
         const api = getClient();

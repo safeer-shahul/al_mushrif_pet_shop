@@ -1,4 +1,3 @@
-// src/components/public/products/ProductCard.tsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -11,18 +10,17 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useWishlistService } from '@/services/public/wishlistService';
-import { useModal } from '@/context/ModalContext'; // 💡 IMPORT Modal Context
+import { useModal } from '@/context/ModalContext';
 
 interface ProductCardProps {
     product: Product;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-    // ... (All existing hooks, state, and memoized values remain the same) ...
     const { getStorageUrl } = useCategoryService();
     const { addItem, cartLoading, setIsCartDrawerOpen } = useCart();
     const { isAuthenticated, user } = useAuth();
-    const { openLoginModal } = useModal(); // 💡 USE Modal Context
+    const { openLoginModal } = useModal(); 
     const { addToWishlist, removeFromWishlist, checkWishlistStatus } = useWishlistService();
     const router = useRouter();
 
@@ -32,12 +30,14 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
     const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
 
+    // Global stock check: checks if ALL variants are out of stock OR if base_quantity is 0
     const isOutOfStock = useMemo(() => {
         if (product.variants && product.variants.length > 0) {
             return product.variants.every(v =>
                 (v.quantity !== undefined && v.quantity !== null && v.quantity <= 0)
             );
         }
+        // Fallback check for non-variant products using base_quantity
         return product.base_quantity !== undefined && product.base_quantity !== null && product.base_quantity <= 0;
     }, [product]);
 
@@ -64,7 +64,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 offer_price: product.base_offer_price !== null && product.base_offer_price !== undefined ?
                     parseFloat(String(product.base_offer_price)) : null,
                 color_value: null,
-                quantity: product.base_quantity,
+                // Using the correct base_quantity field from the product context (which relies on the implicit variant)
+                quantity: product.base_quantity, 
                 images: product.images,
             } as ProdVariant];
         }
@@ -74,7 +75,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
     const selectedVariant = useMemo(() => {
         if (variants.length === 0) return null;
-        // Ensure selectedVariantIndex is valid, fallback to 0
         const index = variants[selectedVariantIndex] ? selectedVariantIndex : 0;
         return variants[index] || variants[0];
     }, [variants, selectedVariantIndex]);
@@ -92,6 +92,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         return null;
     }, [basePrice, offerPrice]);
 
+    // Check stock for the currently selected/default variant
     const isVariantOutOfStock = selectedVariant.quantity !== undefined &&
         selectedVariant.quantity !== null &&
         selectedVariant.quantity <= 0;
@@ -149,7 +150,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         e.stopPropagation();
 
         if (!isAuthenticated) {
-            // 💡 FIX: Open login modal instead of showing a toast
             openLoginModal();
             return;
         }
@@ -210,7 +210,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
                 {/* Image Section - Fixed Aspect Ratio */}
                 <div className="relative w-full pt-[100%] bg-gray-50 overflow-hidden">
-                    {/* ... (Image and badges code unchanged) ... */}
                     {imageUrl ? (
                         <img
                             src={imageUrl}
@@ -251,9 +250,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 </div>
 
                 {/* Content Section - Use flex-1 to occupy all available vertical space */}
-                <div className="py-1 px-3 flex-1 flex flex-col justify-start"> {/* Use justify-end to anchor content to the bottom */}
+                <div className="py-1 px-3 flex-1 flex flex-col justify-start">
 
-                    {/* Price with Discount Badge (Consistent height for prices and discount badge area) */}
+                    {/* Price with Discount Badge */}
                     <div className="flex-shrink-0">
                         <div className="flex items-baseline gap-2">
                             <span className="text-sm md:text-xl font-bold text-gray-900">
@@ -269,7 +268,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
                     {/* Product Title - Fixed height area for 2 lines of text (approx 48px) */}
                     <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-2 flex-shrink-0 h-12">
-                        {/* Added h-12 for fixed height to prevent content jumping */}
                         {product.prod_name}
                     </h3>
 
@@ -284,7 +282,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                                 style={{ WebkitOverflowScrolling: 'touch' }} // iOS smooth scrolling
                             >
                                 {variants.map((variant, index) => {
-                                    const isOutOfStock = variant.quantity !== undefined && variant.quantity <= 0;
+                                    // FIX: Check if quantity is a number (not null or undefined) before comparing to 0
+                                    const isOutOfStock = typeof variant.quantity === 'number' && variant.quantity <= 0; 
                                     const percentOff = variant.offer_price !== null && variant.price > 0
                                         ? Math.round(((variant.price - variant.offer_price) / variant.price) * 100)
                                         : null;
@@ -299,8 +298,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                                                 }`}
                                         >
                                             <div className={`px-3 py-1.5 text-xs font-semibold transition-colors ${selectedVariantIndex === index
-                                                    ? 'bg-black text-white'
-                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                ? 'bg-black text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                                 }`}>
                                                 {variant.variant_name || 'Default'}
                                             </div>
@@ -326,8 +325,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                     onClick={handleAddToCart}
                     disabled={isVariantOutOfStock || isProductDisabled || cartLoading}
                     className={`w-full py-3 text-white font-semibold text-sm flex items-center justify-center transition-all flex-shrink-0 ${isVariantOutOfStock || isProductDisabled || cartLoading
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-[var(--color-primary,#003a8c)] hover:bg-[var(--color-primary,#003a8c)]/90'
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-[var(--color-primary,#003a8c)] hover:bg-[var(--color-primary,#003a8c)]/90'
                         }`}
                 >
                     {isVariantOutOfStock ? (

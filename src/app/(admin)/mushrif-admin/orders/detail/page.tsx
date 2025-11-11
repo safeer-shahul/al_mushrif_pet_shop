@@ -9,7 +9,8 @@ import { useAdminOrderService } from '@/services/admin/orderService';
 import { Order, OrderItem } from '@/types/order';
 import { useCategoryService } from '@/services/admin/categoryService'; 
 import { ProductImage } from '@/types/product'; 
-import ReturnStockModal from './ReturnStockModal'; // <<< NEW IMPORT
+import ReturnStockModal from './ReturnStockModal'; 
+import CancelOrderModal from './CancelOrderModal'; // Assuming this component is in the same directory
 
 const AdminOrderDetailPage: React.FC = () => {
     const router = useRouter();
@@ -23,7 +24,8 @@ const AdminOrderDetailPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [statusUpdating, setStatusUpdating] = useState(false);
-    const [showReturnStockModal, setShowReturnStockModal] = useState(false); // <<< NEW STATE
+    const [showReturnStockModal, setShowReturnStockModal] = useState(false); 
+    const [showCancelModal, setShowCancelModal] = useState(false); // <<< NEW STATE
 
     // --- Load Data ---
     const loadOrder = useCallback(async () => {
@@ -70,9 +72,6 @@ const AdminOrderDetailPage: React.FC = () => {
         );
     };
 
-    /**
-     * Fixes JSON string issues and retrieves the product image URL.
-     */
     const getProductImage = useCallback((item: OrderItem) => {
         const safeParseImages = (rawImages: any): ProductImage[] => {
             if (typeof rawImages === 'string' && rawImages.trim().startsWith('[')) {
@@ -96,27 +95,44 @@ const AdminOrderDetailPage: React.FC = () => {
         return getStorageUrl(imageUrl);
     }, [getStorageUrl]);
 
-    // --- Status Update Handler ---
+    // --- Status Update Handler (Revised to open modal on Cancel) ---
     const handleStatusUpdate = async (newStatus: string) => {
         if (!orderId) return;
-        
-        const reason = newStatus === 'Cancelled' 
-            ? prompt(`Enter reason for canceling Order ${order?.id}:`)
-            : null;
 
-        if (newStatus === 'Cancelled' && reason === null) return;
+        if (newStatus === 'Cancelled') {
+            setShowCancelModal(true); // Open the custom cancellation modal
+            return; 
+        }
         
+        // Handle non-cancellation updates immediately
         setStatusUpdating(true);
         try {
-            await updateOrderStatus(orderId, newStatus, reason || undefined);
+            await updateOrderStatus(orderId, newStatus);
             await loadOrder(); 
-            alert(`Order status updated to ${newStatus}.`);
+            // alert(`Order status updated to ${newStatus}.`); // Use Toast/Alert if needed
         } catch (err: any) {
             alert(err.message || 'Failed to update order status.');
         } finally {
             setStatusUpdating(false);
         }
     };
+    
+    // --- Cancellation Submission Handler (Called by CancelOrderModal) ---
+    const handleCancelSubmit = async (reason: string) => {
+        if (!orderId) return;
+
+        setShowCancelModal(false); 
+        setStatusUpdating(true);
+        
+        try {
+            await updateOrderStatus(orderId, 'Cancelled', reason);
+            await loadOrder(); 
+        } catch (err: any) {
+            throw new Error(err.message || 'Failed to cancel order.');
+        } finally {
+            setStatusUpdating(false);
+        }
+    }
     
     const address = order?.address;
 
@@ -125,19 +141,29 @@ const AdminOrderDetailPage: React.FC = () => {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
-            {/* Return Stock Modal */}
+            
+            {/* 1. Cancel Order Modal */}
+            {showCancelModal && order && (
+                 <CancelOrderModal 
+                    orderId={order.id}
+                    onClose={() => setShowCancelModal(false)}
+                    onSubmit={handleCancelSubmit}
+                 />
+            )}
+            
+            {/* 2. Return Stock Modal */}
             {showReturnStockModal && order && (
                 <ReturnStockModal 
                     order={order}
                     onClose={() => setShowReturnStockModal(false)}
                     onSuccess={() => {
                         setShowReturnStockModal(false);
-                        loadOrder(); // Reload to reflect any stock change
+                        loadOrder(); // Reload to reflect stock change
                     }}
                 />
             )}
 
-            {/* Header and Back Button */}
+            {/* Header and Status Controls */}
             <div className="flex justify-between items-center pb-4 border-b border-gray-200">
                 <h1 className="text-3xl font-bold text-slate-800 flex items-center">
                     <button onClick={() => router.back()} className="p-2 mr-3 text-slate-600 hover:text-blue-600"><FaArrowLeft /></button>
@@ -148,7 +174,7 @@ const AdminOrderDetailPage: React.FC = () => {
                     {getStatusIndicator(order.status)}
                     
                     {/* Return Stock Button (Visible if order is processed/cancelled) */}
-                    {(order.status === 'Cancelled' || order.status === 'Shipped' || order.status === 'Delivered') && (
+                    {(order.status === 'Cancelled' || order.status === 'Shipped' || order.status === 'Delivered' || order.status === 'Packed') && (
                         <button
                             onClick={() => setShowReturnStockModal(true)}
                             className="px-4 py-2 text-sm text-indigo-600 bg-indigo-100 rounded-lg flex items-center hover:bg-indigo-200 transition-colors font-semibold disabled:opacity-50"
@@ -175,8 +201,8 @@ const AdminOrderDetailPage: React.FC = () => {
             </div>
 
             {/* --- Grid Layout for Summary & Shipping --- */}
+            {/* ... (omitted detail panels JSX) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
                 {/* 1. Customer & Address Card */}
                 <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
                     <h3 className="text-lg font-semibold text-slate-700 flex items-center"><FaUser className="mr-2" /> Customer & Delivery</h3>

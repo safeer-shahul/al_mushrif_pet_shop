@@ -3,7 +3,8 @@
 
 import { useEffect } from 'react';
 import { messaging } from '@/utils/firebaseInit';
-import { getToken, onMessage, Messaging } from 'firebase/messaging';
+// NOTE: We import the specific types needed from firebase/messaging
+import { getToken, Messaging } from 'firebase/messaging'; 
 import { createAuthenticatedClient } from '@/utils/ApiClient';
 import { useAuth } from '@/context/AuthContext';
 
@@ -42,21 +43,24 @@ export const useAdminFCM = () => {
             return;
         }
 
+        // We wrap the main logic in a named function to use the non-null Messaging type
         const setupFCM = async (msgInstance: Messaging) => {
 
-            // 1. Request Notification Permission
-            const permission = await Notification.requestPermission();
-
+            // 1. Check existing permission status
+            const permission = Notification.permission;
+            
+            // If already granted, we need to register the SW and get the token again
+            // (The NotificationToggle button handles the requestPermission prompt)
             if (permission !== 'granted') {
-                console.warn('Notification permission denied. Cannot receive push notifications.');
+                console.warn('FCM setup skipped: Permission not granted yet.');
                 return;
             }
 
-            console.log('Notification permission granted.');
-
             // 2. Register Service Worker (must be done before getToken)
             try {
+                // Ensure the worker is registered
                 await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                console.log('Service Worker registered.');
             } catch (err) {
                 console.error('Service Worker registration failed:', err);
                 return;
@@ -89,24 +93,15 @@ export const useAdminFCM = () => {
             }
         };
 
-        // 💡 CRITICAL FIX: Only run setupFCM if 'messaging' is not null
+        // 💡 CRITICAL FIX: Only execute setupFCM if 'messaging' is not null
         if (messaging) {
+            // Pass the messaging instance with type assertion to satisfy TypeScript
             setupFCM(messaging as Messaging);
-
-            // 5. Handle Foreground Messages
-            const unsubscribe = onMessage(messaging, (payload) => {
-                console.log('Foreground message received:', payload);
-                // Handle in-app alert or toast notification here
-            });
-
-            return () => {
-                // Cleanup listener on component unmount
-                unsubscribe();
-            };
         }
 
-        // Return a cleanup function for when messaging is null
+        // 5. Cleanup: We must not have an onMessage listener here, as the Service Worker handles 
+        // the notification display, resolving the double notification issue.
         return () => { };
 
-    }, [token]);
+    }, [token]); 
 };

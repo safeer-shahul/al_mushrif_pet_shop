@@ -156,10 +156,12 @@ const ProductListingPageClient: React.FC = () => {
         }));
     }
 
-    // --- Title Logic ---
+    // --- Title Logic (Optimized for Offer Zone visibility) ---
     const getActiveTitle = () => {
-        if (currentFilters.sort === 'latest' && !currentFilters.search && !currentFilters.offer_id) return 'New Arrivals';
-        if (currentFilters.offer_id) return 'Special Offers';
+        // HIGHEST PRECEDENCE CHECK
+        if (currentFilters.offer_id) return 'Special Offers'; 
+        
+        if (currentFilters.sort === 'latest' && !currentFilters.search) return 'New Arrivals';
         if (currentFilters.search) return `Search Results for "${currentFilters.search}"`;
         if (currentFilters.brand_id) return 'Shop by Brand';
         if (currentFilters.category_id) {

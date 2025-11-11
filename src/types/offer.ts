@@ -14,8 +14,12 @@ export interface Offer {
     min_cart_amount: number | null;
     products: string[];
     
+    // 💡 FIX: Add the missing property
+    is_active: boolean; 
+    
     offer_image: string | null; // 💡 NEW FIELD for file path
     products_with_details?: Product[];
     created_at: string;
     updated_at: string;
+    
 }

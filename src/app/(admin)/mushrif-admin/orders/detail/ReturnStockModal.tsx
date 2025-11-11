@@ -1,6 +1,7 @@
+// src/app/(admin)/mushrif-admin/orders/detail/ReturnStockModal.tsx
 'use client';
 
-import React, { useState, useMemo } from 'react'; // Added useMemo for efficiency
+import React, { useState, useMemo } from 'react';
 import { FaTimes, FaWarehouse, FaPlus, FaMinus, FaSpinner, FaCheckCircle } from 'react-icons/fa';
 import { Order } from '@/types/order';
 import { useAdminOrderService } from '@/services/admin/orderService';
@@ -15,14 +16,11 @@ interface ReturnStockModalProps {
 const ReturnStockModal: React.FC<ReturnStockModalProps> = ({ order, onClose, onSuccess }) => {
     const { returnStock } = useAdminOrderService();
 
-    // FIX 1: Access order.items with a nullish coalescing operator (??) to ensure it's an array
     const orderItems = order.items ?? []; 
 
     // Map of {variantId: quantityToReturn}
-    // FIX 2: Use the local orderItems variable
     const initialQuantities = useMemo(() => {
         return orderItems.reduce((acc, item) => {
-            // Initialize return quantity to 0
             acc[item.prod_variant_id] = 0; 
             return acc;
         }, {} as Record<string, number>);
@@ -46,7 +44,6 @@ const ReturnStockModal: React.FC<ReturnStockModalProps> = ({ order, onClose, onS
     const handleSubmit = async () => {
         setLocalError(null);
         
-        // FIX 3: Use the local orderItems variable
         const itemsToReturn = orderItems
             .filter(item => quantitiesToReturn[item.prod_variant_id] > 0)
             .map(item => ({
@@ -63,7 +60,7 @@ const ReturnStockModal: React.FC<ReturnStockModalProps> = ({ order, onClose, onS
         try {
             const response = await returnStock(order.id, itemsToReturn);
             toast.success(response.message || "Stock returned successfully!");
-            onSuccess(); // Close and reload order details
+            onSuccess();
         } catch (error: any) {
             console.error('Stock return error:', error);
             setLocalError(error.message || "Failed to return stock. Check server logs.");
@@ -89,8 +86,7 @@ const ReturnStockModal: React.FC<ReturnStockModalProps> = ({ order, onClose, onS
                 <p className='text-sm text-gray-600'>Select the quantity of each item to return to inventory. Max return quantity is the amount ordered.</p>
 
                 <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
-                    {/* FIX 4: Iterate over the local orderItems variable */}
-                    {orderItems.map(item => { 
+                    {orderItems.map(item => {
                         const orderedQty = item.quantity;
                         const currentReturnQty = quantitiesToReturn[item.prod_variant_id] || 0;
                         const variantName = item.variant?.variant_name || item.variant?.product?.prod_name || 'Item';

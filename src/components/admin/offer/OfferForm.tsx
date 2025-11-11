@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaSave, FaTimes, FaBoxes, FaPlus, FaTrash, FaInfoCircle, FaSearch, FaSpinner, FaShoppingCart } from 'react-icons/fa';
+import { FaSave, FaBoxes, FaPlus, FaTrash, FaInfoCircle, FaSearch, FaSpinner, FaShoppingCart } from 'react-icons/fa';
 import { Offer, OfferType } from '@/types/offer'; 
 import { useOfferService } from '@/services/admin/offerService'; 
 import { Product } from '@/types/product'; 
@@ -42,7 +42,8 @@ const OfferForm: React.FC<OfferFormProps> = ({
         initialData || { 
             type: 'percentage', 
             products: [],
-            min_cart_amount: null
+            min_cart_amount: null,
+            is_active: true, // <-- SET DEFAULT
         }
     );
     
@@ -65,10 +66,11 @@ const OfferForm: React.FC<OfferFormProps> = ({
 
     useEffect(() => {
         if (initialData?.id !== formData.id) {
-            setFormData(initialData || { 
+            setFormData(initialData ? { ...initialData, is_active: initialData.is_active ?? true } : { 
                 type: 'percentage', 
                 products: [],
-                min_cart_amount: null
+                min_cart_amount: null,
+                is_active: true, // <-- Ensure default is set on initial load
             });
             setImageFile(null);
             setImageRemoved(false);
@@ -98,6 +100,7 @@ const OfferForm: React.FC<OfferFormProps> = ({
         setSearchLoading(true);
         const delaySearch = setTimeout(async () => {
             try {
+                // Assuming searchProductsForDropdown returns { data: Product[] }
                 const results = await searchProductsForDropdown(searchQuery);
                 setSearchResults(results.data);
             } catch (e) {
@@ -110,14 +113,6 @@ const OfferForm: React.FC<OfferFormProps> = ({
         
         return () => clearTimeout(delaySearch);
     }, [searchQuery, searchProductsForDropdown]);
-
-    // Sync initial data (and clear transient states)
-    useEffect(() => {
-        setFormData(initialData || { type: 'percentage', products: [] }); 
-        setImageFile(null);
-        setImageRemoved(false);
-    }, [initialData]);
-
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target as HTMLInputElement;
@@ -141,6 +136,9 @@ const OfferForm: React.FC<OfferFormProps> = ({
         if (name.includes('price') || name.includes('qty') || name.includes('amount') || type === 'number') {
             const numValue = value === '' ? null : Number(value);
             setFormData(prev => ({ ...prev, [name]: numValue }));
+        } else if (name === 'is_active') {
+            const isChecked = (e.target as HTMLInputElement).checked;
+             setFormData(prev => ({ ...prev, is_active: isChecked })); // <-- HANDLE BOOLEAN CHECKBOX
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
@@ -165,9 +163,8 @@ const OfferForm: React.FC<OfferFormProps> = ({
     const handleSelectProduct = (product: Product) => {
         const productIdToAdd = product.id; 
         
-        // 💡 Client-side check for current offer products
         if (isProductAlreadyAdded(productIdToAdd)) {
-            setLocalError('Product already added to this offer.'); // Updated error message
+            setLocalError('Product already added to this offer.');
             return;
         }
 
@@ -237,6 +234,8 @@ const OfferForm: React.FC<OfferFormProps> = ({
             ...formData,
             offer_image_file: imageFile, 
             offer_image_removed: imageRemoved,
+            // Ensure is_active is included
+            is_active: formData.is_active ?? true 
         });
     };
 
@@ -281,9 +280,9 @@ const OfferForm: React.FC<OfferFormProps> = ({
                     </p>
                 </div>
 
-                {/* Offer Name and Type */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <div className="space-y-2">
+                {/* Offer Name, Type, and Status */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     <div className="space-y-2 col-span-2">
                         <label htmlFor="offer_name" className="block text-sm font-medium text-slate-700">
                             Offer Name <span className="text-red-500">*</span>
                         </label>
@@ -300,7 +299,37 @@ const OfferForm: React.FC<OfferFormProps> = ({
                         />
                     </div>
                     
-                    <div className="space-y-2">
+                    <div className="space-y-2 col-span-1">
+                        <label htmlFor="is_active" className="block text-sm font-medium text-slate-700">
+                            Status <span className="text-red-500">*</span>
+                        </label>
+                        <div className="mt-1 flex items-center h-11">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    id="is_active"
+                                    name="is_active"
+                                    checked={formData.is_active ?? true}
+                                    onChange={handleChange} 
+                                    className="sr-only peer" 
+                                    disabled={isDisabled}
+                                />
+                                <div className={`w-11 h-6 ${formData.is_active ? 'bg-green-600' : 'bg-red-400'} rounded-full peer 
+                                    peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full 
+                                    peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 
+                                    after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
+                                    after:h-5 after:w-5 after:transition-all`}>
+                                </div>
+                                <span className="ml-3 text-sm font-medium text-gray-900">
+                                    {formData.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2 col-span-2">
                         <label htmlFor="type" className="block text-sm font-medium text-slate-700">
                             Offer Type <span className="text-red-500">*</span>
                         </label>
@@ -327,7 +356,7 @@ const OfferForm: React.FC<OfferFormProps> = ({
                     
                     {/* Cart-Total Minimum Amount Field */}
                     {isCartLevelDiscount && (
-                           <div className="space-y-2 col-span-2">
+                            <div className="space-y-2 col-span-2">
                                 <label htmlFor="min_cart_amount" className="block text-sm font-medium text-slate-700 flex items-center">
                                     <FaShoppingCart className='mr-2 text-blue-500' />
                                     Minimum Cart Amount Required (AED) <span className="text-red-500">*</span>

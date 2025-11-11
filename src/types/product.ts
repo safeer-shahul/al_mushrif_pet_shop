@@ -1,5 +1,3 @@
-// src/types/product.ts
-
 import { SubCategory } from "./category";
 import { Brand } from "./brand";
 
@@ -24,12 +22,15 @@ export interface ProdVariant {
     variant_name: string | null;
     price: number;
     offer_price: number | null;
-    color_value: string | null;
-    images?: ProductImage[]; 
-    quantity?: number;       
-    is_active?: boolean;      
+    s_active?: boolean; 
     created_at: string;
     updated_at: string;
+
+    // FIX: Changed quantity from `number | undefined` to `number | null | undefined`
+    // This allows backend values of null (which Laravel sends for nullable DB fields)
+    images?: ProductImage[]; 
+    quantity?: number | null; 
+    color_value: string | null; // Moved for better logical grouping
 }
 
 // --------------------------------------------------
@@ -54,14 +55,15 @@ export interface Product {
     
     base_price: number | null; 
     base_offer_price: number | null;
+    // base_quantity in the form/context of base products will likely send null, so number | null is correct.
     base_quantity: number | null; 
     
     // Ensure this is explicitly a boolean
     has_variants: boolean;
     
     // Add these new properties
-    is_disabled?: boolean;      
-    quantity?: number;
+    is_disabled?: boolean;      
+    quantity?: number | null; // FIX: Also updated here to allow null
     
     created_at: string;
     updated_at: string;

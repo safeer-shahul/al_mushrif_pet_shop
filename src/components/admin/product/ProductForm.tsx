@@ -2,15 +2,16 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaSave, FaInfoCircle, FaDollarSign, FaTags, FaBox, FaFolderOpen } from 'react-icons/fa';
+import { FaSave, FaInfoCircle, FaDollarSign, FaTags, FaBox, FaFolderOpen, FaSpinner } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
 
-import { Product, ProductFilters, ProductImage } from '@/types/product';
+import { Product, ProductFilters, ProductImage, ProdVariant } from '@/types/product';
 import { Brand } from '@/types/brand';
 import { RootCategory, SubCategory } from '@/types/category';
 import { FilterType } from '@/types/filter';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ProductImageManager from './ProductImageManager';
+
 
 // ----------------------------------------------------------------------
 // 📝 TEXTAREA IMPLEMENTATION (Temporary Replacement for WYSIWYG)
@@ -146,7 +147,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         description: null,
         base_price: null,
         base_offer_price: null,
-        base_quantity: null,
+        base_quantity: null, // <<< Used to pass quantity to backend for implicit variant
         has_variants: false,
     });
     const [localLoading, setLocalLoading] = useState(false);
@@ -182,7 +183,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
             description: initialData?.description ?? null,
             base_price: initialData?.base_price ?? null,
             base_offer_price: initialData?.base_offer_price ?? null,
-            base_quantity: initialData?.base_quantity ?? null,
+            // FIX: Set base_quantity from the product's base variant if available, otherwise default to null
+            // We assume the base variant is the *first* variant if the product doesn't explicitly track base_variant_id
+            base_quantity: initialData?.variants?.[0]?.quantity ?? initialData?.base_quantity ?? null, 
             has_variants: initialData?.has_variants ?? (isEditMode && (initialData?.variants?.length ?? 0) > 0)
         };
         setFormData(updatedFormData);
@@ -194,7 +197,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         const { name, value, type, checked } = e.target as HTMLInputElement;
         if (type === 'checkbox') {
             setFormData(prev => ({ ...prev, [name]: checked }));
-        } else if (name.includes('price') || name.includes('quantity')) {
+        } else if (name.includes('price') || name.includes('quantity')) { // Includes base_quantity
             const numValue = value === '' ? null : Number(value);
             setFormData(prev => ({ ...prev, [name]: numValue }));
         } else {
@@ -376,7 +379,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                             Product Description (Plain Text)
                             <FaInfoCircle className="ml-2 w-4 h-4 text-gray-400" title="Enter a detailed description." />
                         </label>
-                        <SimpleTextarea // <-- Using the simple textarea component
+                        <SimpleTextarea 
                             value={formData.description || ''}
                             onChange={handleDescriptionChange}
                             placeholder="Enter a detailed product description..."
@@ -471,7 +474,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                                         id="base_quantity"
                                         type="number"
                                         step="1"
-                                        name="base_quantity"
+                                        name="base_quantity" // <<< This field name MUST be base_quantity
                                         value={formData.base_quantity ?? ''}
                                         onChange={handleChange}
                                         placeholder="0"

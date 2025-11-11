@@ -2,28 +2,42 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { FaSync, FaEye, FaBox, FaSpinner, FaUsers } from 'react-icons/fa';
+import { FaSync, FaEye, FaBox, FaSpinner, FaUsers, FaSearch } from 'react-icons/fa'; // Added FaSearch
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { toast } from 'react-hot-toast';
 import { useAdminOrderService } from '@/services/admin/orderService';
 import { Order } from '@/types/order';
 
-// Define the valid statuses array
-const STATUSES = ['Pending Confirmation', 'Packed', 'Shipped', 'Delivered', 'Cancelled'];
+// Define the valid statuses array - kept for dropdown population
+const STATUSES = ['All', 'Pending Confirmation', 'Packed', 'Shipped', 'Delivered', 'Cancelled'];
 
 const AdminOrderListPage: React.FC = () => {
-    const { fetchAllOrders } = useAdminOrderService(); // Removed updateOrderStatus as it's not used in this view anymore
+    const { fetchAllOrders } = useAdminOrderService();
     
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    // Removed statusUpdatingId state as status updates are moved to the detail page
+    
+    // --- NEW STATE FOR FILTERING ---
+    const [selectedStatus, setSelectedStatus] = useState<string>('All');
+    const [searchTerm, setSearchTerm] = useState<string>('');
+    const [currentSearch, setCurrentSearch] = useState<string>(''); // Used to trigger search on button/enter
+    // -------------------------------
 
     const loadOrders = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const data = await fetchAllOrders();
+            // Determine query parameters to send
+            const params: Record<string, string> = {};
+            if (selectedStatus !== 'All') {
+                params.status = selectedStatus;
+            }
+            if (currentSearch) {
+                params.search = currentSearch;
+            }
+
+            // The service hook needs to be updated to accept parameters
+            const data = await fetchAllOrders(params); 
             setOrders(data);
         } catch (err: any) {
             setError(err.message || 'Failed to load orders.');
@@ -31,11 +45,16 @@ const AdminOrderListPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [fetchAllOrders]);
+    }, [fetchAllOrders, selectedStatus, currentSearch]); // Dependencies added
 
     useEffect(() => {
         loadOrders();
     }, [loadOrders]);
+
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setCurrentSearch(searchTerm); // Trigger loadOrders via dependency array
+    };
 
     // --- Utility Functions ---
     const getStatusColor = (status: string) => {
@@ -60,10 +79,10 @@ const AdminOrderListPage: React.FC = () => {
     return (
         <div className="space-y-6">
             
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-slate-800">Order Management</h1>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                <h1 className="text-2xl font-bold text-slate-800 mb-4 sm:mb-0">Order Management</h1>
                 <button 
-                    onClick={loadOrders}
+                    onClick={() => { setCurrentSearch(''); setSelectedStatus('All'); loadOrders(); }} // Reset filters on refresh
                     disabled={loading}
                     className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
                 >
@@ -71,6 +90,59 @@ const AdminOrderListPage: React.FC = () => {
                     Refresh
                 </button>
             </div>
+            
+            {/* --- NEW FILTER/SEARCH BAR --- */}
+            <div className="flex flex-col lg:flex-row gap-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                
+                {/* Status Filter */}
+                <div className="flex items-center space-x-2 w-full lg:w-1/3">
+                    <label htmlFor="status-filter" className="text-sm font-medium text-gray-700 flex-shrink-0">Filter by Status:</label>
+                    <select
+                        id="status-filter"
+                        value={selectedStatus}
+                        onChange={(e) => setSelectedStatus(e.target.value)}
+                        disabled={loading}
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    >
+                        {STATUSES.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Search Bar */}
+                <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 w-full lg:w-2/3">
+                    <div className="relative w-full">
+                        <input
+                            type="text"
+                            placeholder="Search by ID, Customer Name, or Email..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            disabled={loading}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 flex-shrink-0"
+                    >
+                        Search
+                    </button>
+                    {currentSearch && (
+                        <button
+                            type="button"
+                            onClick={() => { setSearchTerm(''); setCurrentSearch(''); }}
+                            className="text-sm text-gray-500 hover:text-red-500 transition-colors flex-shrink-0"
+                            title="Clear Search"
+                        >
+                            Clear
+                        </button>
+                    )}
+                </form>
+            </div>
+            {/* ------------------------------- */}
 
             {error && (
                 <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-lg text-sm text-red-700">{error}</div>
@@ -80,6 +152,9 @@ const AdminOrderListPage: React.FC = () => {
                 <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
                     <FaBox className="h-10 w-10 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900">No Orders Found</h3>
+                    {(selectedStatus !== 'All' || currentSearch) && (
+                        <p className="text-gray-500 mt-2">Try clearing the filters or search term.</p>
+                    )}
                 </div>
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -110,7 +185,6 @@ const AdminOrderListPage: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm font-semibold text-slate-800">{formatPrice(order.payable_price)}</span>
                                         </td>
-                                        {/* REMOVED STATUS DROPDOWN, REPLACED WITH BADGE */}
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
                                                 {order.status}

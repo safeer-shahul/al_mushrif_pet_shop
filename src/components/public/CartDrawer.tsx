@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import LoginModal from './LoginModal';
 import CheckoutModal from './CheckoutModal';
-import Link from 'next/link'; // Added Link for 'Continue Shopping'
+import Link from 'next/link';
 
 interface CartDrawerProps {
     isOpen: boolean;
@@ -15,7 +15,7 @@ interface CartDrawerProps {
 }
 
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
-    const { cart, cartCount, cartLoading, removeItem, updateItemQuantity, setIsCartDrawerOpen } = useCart();
+    const { cart, cartCount, cartLoading, removeItem, updateItemQuantity, setIsCartDrawerOpen, fetchCart } = useCart(); // Ensure fetchCart is destructured
     const { isAuthenticated } = useAuth();
     
     const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false); 
@@ -23,7 +23,6 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
     // Helper to safely convert price to number
     const getSafeNumber = (value: number | string | undefined | null): number => {
-        // Coalesce undefined/null/string to 0 and convert to float
         return parseFloat(String(value || 0));
     };
 
@@ -51,7 +50,6 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             manualDiscount += (basePrice - priceToUse) * item.quantity;
         });
 
-        // Assuming shipping is free for this calculation for simplicity if backend totals are missing
         return {
             totalItemsPrice: manualItemsPrice, 
             totalDiscount: manualDiscount, 
@@ -79,6 +77,13 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             setIsCheckoutModalOpen(true);
         }
     }
+
+    // FIX: Function to handle modal close AND force cart refresh
+    const handleCheckoutModalClose = () => {
+        setIsCheckoutModalOpen(false); 
+        // CRITICAL: Force the cart to re-fetch its state (which should now be empty from the backend)
+        fetchCart(); 
+    };
 
 
     return (
@@ -116,7 +121,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                  <p className="text-lg font-semibold text-slate-700">Your cart is empty.</p>
                                  <p className="text-sm text-gray-500 mt-1">Ready to find something great?</p>
                                  <Link href="/" onClick={onClose} className="mt-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                                    Continue Shopping
+                                     Continue Shopping
                                  </Link>
                              </div>
                         )}
@@ -140,14 +145,14 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                     {/* Image */}
                                     <div className="w-16 h-16 flex-shrink-0 mr-4 rounded-md overflow-hidden border border-gray-200">
                                         {item.primary_image_url ? ( 
-                                            <img 
-                                                src={item.primary_image_url} 
-                                                alt={item.variant.product.prod_name} 
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-gray-100 flex items-center justify-center text-xs text-gray-500">No Image</div>
-                                        )}
+                                             <img 
+                                                 src={item.primary_image_url} 
+                                                 alt={item.variant.product.prod_name} 
+                                                 className="w-full h-full object-cover"
+                                             />
+                                         ) : (
+                                             <div className="w-full h-full bg-gray-100 flex items-center justify-center text-xs text-gray-500">No Image</div>
+                                         )}
                                     </div>
                                     
                                     {/* Details & Controls */}
@@ -265,7 +270,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
             <CheckoutModal 
                 isOpen={isCheckoutModalOpen} 
-                onClose={() => setIsCheckoutModalOpen(false)} 
+                onClose={handleCheckoutModalClose} 
             />
         </>
     );

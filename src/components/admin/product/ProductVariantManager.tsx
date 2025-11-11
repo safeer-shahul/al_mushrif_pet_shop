@@ -11,16 +11,16 @@ import ProductImageManager from './ProductImageManager';
 interface ProductVariantManagerProps {
     product: Product;
     onVariantsUpdated: (variants: ProdVariant[]) => void;
-    onFullDataRefresh: () => void; 
+    onFullDataRefresh: () => void;
 }
 
-const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({ 
-    product, 
+const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
+    product,
     onVariantsUpdated,
-    onFullDataRefresh 
+    onFullDataRefresh
 }) => {
     const { rawCreateVariantJson, rawUpdateVariantJson, deleteVariant, getStorageUrl } = useProductService();
-    
+
     const [variants, setVariants] = useState<ProdVariant[]>(product.variants || []);
     const [loading, setLoading] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
@@ -38,11 +38,11 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
             ...updatedVariant,
             images: updatedVariant.images || []
         };
-        
-        const newVariants = variants.map(v => 
+
+        const newVariants = variants.map(v =>
             v.id === variantWithImages.id ? variantWithImages : v
         );
-        
+
         setVariants(newVariants);
         onVariantsUpdated(newVariants);
     };
@@ -58,12 +58,12 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
         setVariants(newVariants);
         onVariantsUpdated(newVariants);
     };
-    
+
     const handlePrimaryImageSet = useCallback((imageId: string) => {
         const owningVariant = variants.find(v => v.images?.some(img => img.id === imageId));
         if (owningVariant) {
-             // Forcing a local update to propagate the change to the table/list view
-             handleLocalUpdate({ ...owningVariant, images: owningVariant.images });
+            // Forcing a local update to propagate the change to the table/list view
+            handleLocalUpdate({ ...owningVariant, images: owningVariant.images });
         }
     }, [variants]);
 
@@ -76,12 +76,13 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
         onSuccess: (variant: ProdVariant) => void;
         onFullDataRefresh: () => void;
     }
-    
+
     const VariantForm: React.FC<VariantFormProps> = ({ initialData, isNew, productId, onClose, onSuccess, onFullDataRefresh }) => {
+        // IMPORTANT: Ensure 'quantity' is initialized/tracked in data state
         const [data, setData] = useState<Partial<ProdVariant>>({ ...initialData, prod_id: productId });
         const [localError, setLocalError] = useState<string | null>(null);
         const [saving, setSaving] = useState(false);
-        
+
         const [tempImages, setTempImages] = useState<ProductImage[]>(initialData?.images || []);
 
         const handleImageManagerChange = useCallback((updatedImages: ProductImage[]) => {
@@ -90,9 +91,9 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
 
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             const { name, value, type } = e.target;
-            
-            if (type === 'number' || name.includes('price')) {
-                // Convert price inputs to numbers or null if empty
+
+            if (type === 'number' || name.includes('price') || name === 'quantity') { // <<< Check for quantity
+                // Convert price/quantity inputs to numbers or null if empty
                 const numValue = value === '' ? null : Number(value);
                 setData(prev => ({ ...prev, [name]: numValue }));
             } else {
@@ -110,26 +111,27 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                 setSaving(false);
                 return;
             }
-            
+
             const payload: Partial<ProdVariant> = {
                 variant_name: data.variant_name || null,
                 price: Number(data.price),
                 offer_price: data.offer_price ? Number(data.offer_price) : null,
                 color_value: data.color_value || null,
+                quantity: data.quantity ? Number(data.quantity) : null, // <<< Sending quantity
             };
-            
+
             try {
                 let responseVariant: ProdVariant;
-                
+
                 if (isNew) {
                     responseVariant = await rawCreateVariantJson(productId, payload);
-                    // After creating a new variant, we must refresh the parent page to get the image upload context
-                    onFullDataRefresh(); 
+                    // Refresh parent data on creation to get accurate variant data (including images)
+                    onFullDataRefresh();
                 } else {
                     if (!data.id) throw new Error("Missing variant ID for update.");
                     responseVariant = await rawUpdateVariantJson(productId, data.id, payload);
                 }
-                
+
                 responseVariant.images = tempImages;
                 onSuccess(responseVariant);
             } catch (err: any) {
@@ -145,10 +147,10 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                     <h4 className="text-md font-semibold text-slate-700">
                         {isNew ? 'Add New Variant' : `Edit: ${initialData?.variant_name || initialData?.id}`}
                     </h4>
-                    
+
                     {localError && <div className="p-2 bg-red-100 text-red-700 text-sm rounded">{localError}</div>}
-                    
-                    {/* Variant Form Inputs */}
+
+                    {/* Variant Name & Color Value */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label htmlFor="variant_name" className="block text-sm font-medium text-slate-700">
@@ -157,8 +159,8 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                             <input
                                 id="variant_name"
                                 type="text"
-                                name="variant_name" 
-                                value={data.variant_name || ''} 
+                                name="variant_name"
+                                value={data.variant_name || ''}
                                 onChange={handleChange}
                                 placeholder="e.g., Red / Large / 128GB"
                                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
@@ -171,16 +173,17 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                             <input
                                 id="color_value"
                                 type="text"
-                                name="color_value" 
-                                value={data.color_value || ''} 
+                                name="color_value"
+                                value={data.color_value || ''}
                                 onChange={handleChange}
                                 placeholder="#ff0000"
                                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    {/* Price and Quantity */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <label htmlFor="price" className="block text-sm font-medium text-slate-700">
                                 Price <span className="text-red-500">*</span>
@@ -191,8 +194,8 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                     id="price"
                                     type="number"
                                     step="0.01"
-                                    name="price" 
-                                    value={data.price || ''} 
+                                    name="price"
+                                    value={data.price || ''}
                                     onChange={handleChange}
                                     required
                                     placeholder="0.00"
@@ -210,16 +213,33 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                     id="offer_price"
                                     type="number"
                                     step="0.01"
-                                    name="offer_price" 
-                                    value={data.offer_price || ''} 
+                                    name="offer_price"
+                                    value={data.offer_price || ''}
                                     onChange={handleChange}
                                     placeholder="0.00"
                                     className="w-full px-4 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 pl-10"
                                 />
                             </div>
                         </div>
+
+                        {/* Stock Quantity Input */}
+                        <div className="space-y-2">
+                            <label htmlFor="quantity" className="block text-sm font-medium text-slate-700">
+                                Stock Qty (Optional)
+                            </label>
+                            <input
+                                id="quantity"
+                                type="number"
+                                step="1"
+                                name="quantity"
+                                value={data.quantity || ''}
+                                onChange={handleChange}
+                                placeholder="0"
+                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
                     </div>
-                    
+
                     <div className="flex justify-end space-x-2">
                         <button type="button" onClick={onClose} disabled={saving} className="px-3 py-1.5 text-sm bg-gray-300 rounded hover:bg-gray-400">
                             Cancel
@@ -227,7 +247,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                         <button type="submit" disabled={saving} className={`px-3 py-1.5 text-sm text-white rounded transition-colors ${saving ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'}`}>
                             {saving ? (
                                 <>
-                                    <FaSpinner className="animate-spin inline mr-1" /> 
+                                    <FaSpinner className="animate-spin inline mr-1" />
                                     {isNew ? 'Saving...' : 'Saving...'}
                                 </>
                             ) : (
@@ -236,7 +256,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                         </button>
                     </div>
                 </form>
-                
+
                 {/* Image Manager for Existing Variants */}
                 {!isNew && data.id && (
                     <ProductImageManager
@@ -261,7 +281,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 space-y-4">
             <div className="flex justify-between items-center border-b pb-3">
                 <h3 className="text-lg font-bold text-slate-800">Product Variants ({variants.length})</h3>
-                <button 
+                <button
                     onClick={() => { setIsAdding(true); setEditingVariant(null); }}
                     className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-50"
                     disabled={loading || isAdding || !!editingVariant}
@@ -269,16 +289,16 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                     <FaPlus className="mr-2 w-3 h-3" /> Add Variant
                 </button>
             </div>
-            
+
             {/* Add/Edit Form */}
             {(isAdding || editingVariant) && (
-                <VariantForm 
+                <VariantForm
                     productId={product.id}
                     isNew={isAdding}
                     initialData={editingVariant || {}}
-                    onClose={() => { 
-                        setIsAdding(false); 
-                        setEditingVariant(null); 
+                    onClose={() => {
+                        setIsAdding(false);
+                        setEditingVariant(null);
                     }}
                     onSuccess={(variant) => {
                         if (isAdding) {
@@ -306,6 +326,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                 <th className="px-4 py-2">Price</th>
                                 <th className="px-4 py-2">Offer Price</th>
                                 <th className="px-4 py-2">Color</th>
+                                <th className="px-4 py-2">Stock Qty</th> {/* ADDED Header */}
                                 <th className="px-4 py-2">Images</th>
                                 <th className="px-4 py-2 text-right">Actions</th>
                             </tr>
@@ -318,9 +339,9 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                         <td className="px-4 py-2">
                                             <div className="flex items-center">
                                                 {primaryImage && (
-                                                    <img 
+                                                    <img
                                                         src={getStorageUrl(primaryImage.image_url) || ''}
-                                                        alt={variant.variant_name || ''} 
+                                                        alt={variant.variant_name || ''}
                                                         className="w-8 h-8 object-cover rounded-full mr-2 border"
                                                     />
                                                 )}
@@ -333,7 +354,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                         <td className="px-4 py-2">
                                             {variant.offer_price ? (
                                                 <span className="text-red-600 font-semibold">
-                                                AED {typeof variant.offer_price === 'number' ? variant.offer_price.toFixed(2) : '0.00'}
+                                                    AED {typeof variant.offer_price === 'number' ? variant.offer_price.toFixed(2) : '0.00'}
                                                 </span>
                                             ) : (
                                                 <span className="text-gray-400">N/A</span>
@@ -342,19 +363,32 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                         <td className="px-4 py-2">
                                             <div className="flex items-center">
                                                 {variant.color_value && (
-                                                    <span 
-                                                        className="w-4 h-4 rounded-full border border-gray-300 mr-2 flex-shrink-0" 
+                                                    <span
+                                                        className="w-4 h-4 rounded-full border border-gray-300 mr-2 flex-shrink-0"
                                                         style={{ backgroundColor: variant.color_value }}
                                                     ></span>
                                                 )}
                                                 {variant.color_value || 'N/A'}
                                             </div>
                                         </td>
+
+                                        {/* Stock Quantity Cell */}
+                                        <td className="px-4 py-2">
+                                            {variant.quantity !== null && variant.quantity !== undefined ? (
+                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${variant.quantity > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                    {variant.quantity}
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-500 text-xs italic">N/A</span>
+                                            )}
+                                        </td>
+
                                         <td className="px-4 py-2">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${variant.images?.length ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                 {variant.images?.length || 0}
                                             </span>
                                         </td>
+
                                         <td className="px-4 py-2 text-right space-x-2">
                                             <button
                                                 onClick={() => { setEditingVariant(variant); setIsAdding(false); }}
@@ -370,7 +404,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                                     try {
                                                         await deleteVariant(product.id, variant.id);
                                                         handleLocalDelete(variant.id);
-                                                        onFullDataRefresh(); 
+                                                        onFullDataRefresh();
                                                     } catch (e: any) {
                                                         setApiError(e.message || 'Failed to delete variant.');
                                                     } finally {

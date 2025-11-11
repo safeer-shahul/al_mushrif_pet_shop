@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Cart, CartContextType, CartItem } from '@/types/cart'; 
 import { useAuth } from './AuthContext'; 
-// CRITICAL FIX: Import necessary utility functions from ApiClient.ts
 import { publicClient, getCsrfToken, createAuthenticatedClient } from '@/utils/ApiClient'; 
 import { AxiosResponse, AxiosInstance } from 'axios';
 import { useCategoryService } from '@/services/admin/categoryService'; 
@@ -27,9 +26,9 @@ type LocalCartItem = {
         id: string; 
         price: number | null; 
         offer_price: number | null; 
-        product: { id: string, prod_name: string, base_price: number | null, images?: any[] }; // Added images for local cart lookup
+        product: { id: string, prod_name: string, base_price: number | null, images?: any[] };
         images?: any[];
-        quantity?: number; 
+        quantity?: number | null; // Must match the ProdVariant type
         is_active?: boolean; 
     };
 };
@@ -78,7 +77,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return cart?.items.reduce((total, item) => total + item.quantity, 0) || 0;
     }, [cart]);
     
-    // 💡 HELPER: Dynamically selects the correct Axios client (Authenticated or Public)
+    // HELPER: Dynamically selects the correct Axios client (Authenticated or Public)
     const getClient = useCallback((): AxiosInstance => {
         return isAuthenticated && token 
             ? createAuthenticatedClient(token) 
@@ -88,54 +87,46 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     // Helper to process the *backend* data structure for the frontend display
     const processCartData = useCallback((rawCart: Cart | null): Cart | null => {
-        if (!rawCart) return null;
-        
-        const processedItems: CartItem[] = rawCart.items.map(item => {
-            
-            // CRITICAL: Ensure images is an array before using .find()
-            let variantImages = item.variant.images || [];
-            if (typeof variantImages === 'string') {
-                try {
-                    variantImages = JSON.parse(variantImages);
-                } catch (e) {
-                    variantImages = [];
-                }
-            }
-            
-            let primaryImage: any = null;
-
-            // --- IMAGE RESOLUTION LOGIC ---
-            if (variantImages.length > 0) {
-                // 1. Use the image linked to the variant (standard variant)
-                primaryImage = (variantImages as any[]).find(img => img.is_primary) || (variantImages as any[])[0];
-            } 
+        if (!rawCart) return null;
+        
+        const processedItems: CartItem[] = rawCart.items.map(item => {
             
-            // CRITICAL FIX: Explicitly check if item.variant.product.images is truthy (not null/undefined) 
-            // before checking its length, and confirm it's a base product.
+            let variantImages = item.variant.images || [];
+            if (typeof variantImages === 'string') {
+                try {
+                    variantImages = JSON.parse(variantImages);
+                } catch (e) {
+                    variantImages = [];
+                }
+            }
+            
+            let primaryImage: any = null;
+
+            // --- IMAGE RESOLUTION LOGIC ---
+            if (variantImages.length > 0) {
+                primaryImage = (variantImages as any[]).find(img => img.is_primary) || (variantImages as any[])[0];
+            } 
+            
             const productHasImages = item.variant.product.images && item.variant.product.images.length > 0;
 
-            if (!primaryImage && productHasImages && item.variant.product.has_variants === false) {
-                // 2. If no variant images AND it's a BASE PRODUCT, use product images.
-                primaryImage = item.variant.product.images!.find(img => img.is_primary) || item.variant.product.images![0];
-            } 
-            // --- END IMAGE RESOLUTION LOGIC ---
-            
-            return {
-                ...item,
-                // Injects the resolved URL path
-                primary_image_url: primaryImage?.image_url ? getStorageUrl(primaryImage.image_url) : null
-            } as CartItem; 
-        });
+            if (!primaryImage && productHasImages && item.variant.product.has_variants === false) {
+                primaryImage = item.variant.product.images!.find(img => img.is_primary) || item.variant.product.images![0];
+            } 
+            // --- END IMAGE RESOLUTION LOGIC ---
+            
+            return {
+                ...item,
+                primary_image_url: primaryImage?.image_url ? getStorageUrl(primaryImage.image_url) : null
+            } as CartItem; 
+        });
 
-        return { ...rawCart, items: processedItems };
-    }, [getStorageUrl]);
+        return { ...rawCart, items: processedItems };
+    }, [getStorageUrl]);
 
     // Fetches the entire cart instance from the Laravel API
     const fetchBackendCart = useCallback(async () => {
-        // Use the dynamic client here. If authenticated, it sends the token.
         const client = getClient();
         try {
-            // NOTE: Requires backend eager loading of 'items.variant.product.images'
             const response: AxiosResponse<Cart> = await client.get('/cart');
             return response.data;
         } catch (error) {
@@ -144,12 +135,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }, [getClient]);
     
     // Check if a product variant is valid (in stock and active) - always public route
-    const checkProductValidity = useCallback(async (prodVariantId: string): Promise<{valid: boolean, reason?: string}> => {
+    const checkProductValidity = useCallback(async (prodVariantId: string): Promise<{valid: boolean, reason?: string, available_quantity?: number}> => {
         try {
             const response = await publicClient.get(`/products/${prodVariantId}/validate`);
+            // Check if stock is 0 but item is still technically valid/active
+            if (response.data.stock !== undefined && response.data.stock !== 'untracked' && response.data.stock <= 0) {
+                 return { valid: false, reason: 'Out of stock', available_quantity: response.data.stock };
+            }
             return response.data;
-        } catch (error) {
-            return { valid: true };
+        } catch (error: any) {
+             // If the API call fails or returns 400/404, capture the error message
+             const reason = error.response?.data?.message || 'Product validation failed';
+             const stock = error.response?.data?.available_quantity;
+             return { valid: false, reason: reason, available_quantity: stock };
         }
     }, []);
 
@@ -216,8 +214,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                         prod_variant_id: item.prod_variant_id, 
                         quantity: item.quantity 
                     });
-                } catch (err) {
+                } catch (err: any) {
+                    // API might throw 400 due to stock limits, capture error
                     console.error('Failed to sync item:', item, err);
+                    newInvalidItems.push({
+                        id: item.prod_variant_id,
+                        reason: err.response?.data?.message || 'Stock issue prevented sync.'
+                    });
                 }
             }
             
@@ -243,6 +246,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             syncGuestCartWithUser();
         };
         
+        // This relies on the AuthProvider dispatching a custom event on successful login
         window.addEventListener('user-logged-in', handleLoginSync);
         
         return () => {
@@ -256,14 +260,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setCartLoading(true);
         setError(null);
 
+        // Perform client-side validation check first
         const validity = await checkProductValidity(prodVariantId);
         if (!validity.valid) {
             setCartLoading(false);
-            throw new Error(validity.reason || 'This product cannot be added to your cart');
+            // Throw a precise error so the calling component can handle the out-of-stock toast
+            throw new Error(validity.reason || 'This product cannot be added to your cart'); 
         }
 
         if (isAuthenticated) {
-            // Use the dynamic client for authenticated actions
+            // LOGGED IN: Backend logic
             const client = getClient(); 
             try {
                 await getCsrfToken(); 
@@ -274,58 +280,71 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 throw new Error(err.response?.data?.message || 'Failed to add item to cart.');
             }
         } else {
-            // GUEST: Local Storage Logic (using publicClient for product detail lookup)
+            // GUEST: Local Storage Logic 
             let localCart = getLocalCart();
             let existingItem = localCart.items.find(item => item.prod_variant_id === prodVariantId);
             
-            try {
-                if (existingItem) {
-                    existingItem.quantity += quantity;
-                } else {
-                    // Fetch detailed product for image/price data (public endpoint)
+            // Re-fetch product data for price/image if it's a NEW item or if data is stale
+            let productData;
+            
+            if (!existingItem) {
+                 try {
                     const response = await publicClient.get(`/products/${prodVariantId}`);
-                    const productData = response.data;
+                    productData = response.data;
+                 } catch (err: any) {
+                    setCartLoading(false);
+                    throw new Error(err.response?.data?.message || 'Failed to fetch product details for guest cart.');
+                 }
+            } else {
+                 // Use existing data for quick update
+                 productData = existingItem.variant.product; 
+            }
 
-                    // Extract and Resolve Image URL
-                    const allImages = (productData.variants?.[0]?.images || []).concat(productData.images || []);
-                    const primaryImage = allImages.find((img: any) => img.is_primary) || allImages[0];
-                    const imageUrl = primaryImage?.image_url ? getStorageUrl(primaryImage.image_url) : null;
-                    
-                    const hasVariants = productData.variants && productData.variants.length > 0;
-                    const variantQuantity = hasVariants ? productData.variants[0].quantity : productData.base_quantity;
-                    const isActive = !productData.is_disabled;
-                    
-                    if (!isActive) {
-                        throw new Error('This product is currently not available');
-                    }
-                    
-                    if (variantQuantity !== null && variantQuantity < quantity) {
-                        throw new Error(`Only ${variantQuantity} units available`);
-                    }
-                    
-                    localCart.items.push({
-                        id: uuidv4(), 
-                        prod_variant_id: prodVariantId,
-                        quantity: quantity,
-                        primary_image_url: imageUrl,
-                        variant: {
-                            id: hasVariants ? productData.variants[0].id : productData.id,
-                            price: hasVariants ? productData.variants[0].price : productData.base_price,
-                            offer_price: hasVariants ? productData.variants[0].offer_price : productData.base_offer_price,
-                            quantity: variantQuantity, 
-                            is_active: isActive, 
-                            product: { 
-                                id: productData.id, 
-                                prod_name: productData.prod_name, 
-                                base_price: productData.base_price 
-                            }
-                        }
-                    } as LocalCartItem); 
-                }
+            // Check final quantity against available stock (Local Check using validation stock)
+            const currentQty = existingItem ? existingItem.quantity : 0;
+            const newTotalQty = currentQty + quantity;
+            const variantQuantity = validity.available_quantity; 
+
+            if (variantQuantity !== null && variantQuantity !== undefined && newTotalQty > variantQuantity) {
+                 setCartLoading(false);
+                 throw new Error(`Only ${variantQuantity} units available.`);
+            }
+            
+            try {
+                 if (existingItem) {
+                     existingItem.quantity = newTotalQty;
+                 } else {
+                     // Create new item structure for local storage
+                     const allImages = (productData.variants?.[0]?.images || []).concat(productData.images || []);
+                     const primaryImage = allImages.find((img: any) => img.is_primary) || allImages[0];
+                     const imageUrl = primaryImage?.image_url ? getStorageUrl(primaryImage.image_url) : null;
+                     
+                     const hasVariants = productData.variants && productData.variants.length > 0;
+
+                     localCart.items.push({
+                         id: uuidv4(), 
+                         prod_variant_id: prodVariantId,
+                         quantity: quantity,
+                         primary_image_url: imageUrl,
+                         variant: {
+                             id: hasVariants ? productData.variants[0].id : productData.id,
+                             price: hasVariants ? productData.variants[0].price : productData.base_price,
+                             offer_price: hasVariants ? productData.variants[0].offer_price : productData.base_offer_price,
+                             quantity: variantQuantity, 
+                             is_active: true, 
+                             product: { 
+                                 id: productData.id, 
+                                 prod_name: productData.prod_name, 
+                                 base_price: productData.base_price 
+                             }
+                         }
+                     } as LocalCartItem); 
+                 }
             } catch (err: any) {
-                console.error("Guest Cart Add Error:", err);
-                setCartLoading(false);
-                throw new Error(err.message || 'Failed to add product to cart');
+                 // Catch any unexpected structural error during local cart manipulation
+                 console.error("Guest Cart Local Manipulation Error:", err);
+                 setCartLoading(false);
+                 throw new Error(err.message || 'Error updating local cart.');
             }
             
             saveLocalCart(localCart);
@@ -339,7 +358,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setCartLoading(true);
         
         if (isAuthenticated) {
-            // Use the dynamic client for authenticated actions
+            // LOGGED IN: Backend logic
             const client = getClient(); 
             try {
                 await getCsrfToken(); 
@@ -349,20 +368,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 setError(err.response?.data?.message || 'Failed to update item quantity.');
             }
         } else {
-            // GUEST: Local Storage Logic (unchanged)
+            // GUEST: Local Storage Logic 
             let localCart = getLocalCart();
+            let existingItem = localCart.items.find(item => item.prod_variant_id === prodVariantId);
             
             if (quantity === 0) {
-                localCart.items = localCart.items.filter(item => item.prod_variant_id !== prodVariantId);
-            } else {
-                let existingItem = localCart.items.find(item => item.prod_variant_id === prodVariantId);
-                if (existingItem) {
-                    if (existingItem.variant.quantity !== undefined && quantity > existingItem.variant.quantity) {
-                        toast.error(`Only ${existingItem.variant.quantity} units available`);
-                        quantity = existingItem.variant.quantity;
-                    }
-                    existingItem.quantity = quantity;
-                }
+                 localCart.items = localCart.items.filter(item => item.prod_variant_id !== prodVariantId);
+            } else if (existingItem) {
+                 // FIX: Re-check stock before setting quantity
+                 const available = existingItem.variant.quantity;
+                 
+                 // CRITICAL FIX: Use type check to ensure 'available' is a number before comparison
+                 if (available !== undefined && available !== null && quantity > available) {
+                     toast.error(`Only ${available} units available`);
+                     quantity = available; // Cap the quantity
+                 }
+                 existingItem.quantity = quantity;
             }
             
             saveLocalCart(localCart);
@@ -376,7 +397,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setCartLoading(true);
 
         if (isAuthenticated) {
-            // Use the dynamic client for authenticated actions
             const client = getClient();
             try {
                 await getCsrfToken(); 
@@ -386,7 +406,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 setError(err.response?.data?.message || 'Failed to remove item from cart.');
             }
         } else {
-            // GUEST: Local Storage Logic (unchanged)
             let localCart = getLocalCart();
             localCart.items = localCart.items.filter(item => item.prod_variant_id !== prodVariantId);
             saveLocalCart(localCart);
@@ -395,90 +414,87 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setCartLoading(false);
     }, [isAuthenticated, fetchCart, getClient]);
 
-    // NEW: Function to validate all cart items before checkout
+    // Function to validate all cart items before checkout (used in CheckoutModal)
     const validateCart = useCallback(async (): Promise<boolean> => {
-        if (!cart || cart.items.length === 0) return false;
+         if (!cart || cart.items.length === 0) return false;
         
-        setCartLoading(true);
-        const newInvalidItems: {id: string, reason: string}[] = [];
-        const client = getClient();
-
-        try {
-            if (isAuthenticated) {
-                try {
-                    // Use the authenticated client for server-side validation
-                    const response = await client.post('/cart/validate');
-                    
-                    if (response.data.invalid_items && response.data.invalid_items.length > 0) {
-                        setInvalidItems(response.data.invalid_items);
-                        
-                        for (const item of response.data.invalid_items) {
-                            // removeItem uses the dynamic client, ensuring authenticity
-                            await removeItem(item.id); 
-                            toast.error(`${item.name || 'An item'} was removed from your cart: ${item.reason}`);
-                        }
-                        
-                        return false;
-                    }
-                    return true;
-                } catch (err) {
-                    setError('Failed to validate cart items');
-                    return false;
-                }
-            } else {
-                // Guest cart validation (frontend check)
-                const localCart = getLocalCart();
-                
-                for (const item of localCart.items) {
-                    const validity = await checkProductValidity(item.prod_variant_id);
-                    
-                    if (!validity.valid) {
-                        newInvalidItems.push({
-                            id: item.prod_variant_id,
-                            reason: validity.reason || 'Product is no longer available'
-                        });
-                    }
-                    
-                    if (item.variant.quantity !== undefined && item.quantity > item.variant.quantity) {
-                        newInvalidItems.push({
-                            id: item.prod_variant_id,
-                            reason: `Only ${item.variant.quantity} units available`
-                        });
-                    }
-                }
-                
-                if (newInvalidItems.length > 0) {
-                    setInvalidItems(newInvalidItems);
-                    
-                    localCart.items = localCart.items.filter(
-                        item => !newInvalidItems.some(invalid => invalid.id === item.prod_variant_id)
-                    );
-                    
-                    saveLocalCart(localCart);
-                    setCart(localCart as unknown as Cart);
-                    
-                    toast.error(`${newInvalidItems.length} item(s) were removed from your cart`);
-                    
-                    return false;
-                }
-                
-                return true;
-            }
-        } finally {
-            setCartLoading(false);
-        }
-    }, [cart, isAuthenticated, removeItem, checkProductValidity, getClient]);
+         setCartLoading(true);
+         const client = getClient();
+         let isValid = true;
+         
+         try {
+             if (isAuthenticated) {
+                 // Server-side validation
+                 const response = await client.post('/cart/validate');
+                 
+                 if (response.data.invalid_items && response.data.invalid_items.length > 0) {
+                     setInvalidItems(response.data.invalid_items);
+                     await fetchCart();
+                     isValid = false;
+                 }
+             } else {
+                 // Guest cart validation (frontend check)
+                 const localCart = getLocalCart();
+                 const itemsToRemove: string[] = [];
+                 
+                 for (const item of localCart.items) {
+                     const validity = await checkProductValidity(item.prod_variant_id);
+                     if (!validity.valid) {
+                         itemsToRemove.push(item.prod_variant_id);
+                         toast.error(`"${item.variant.product.prod_name}" removed: ${validity.reason}`);
+                         isValid = false;
+                         continue;
+                     }
+                     
+                     // Check stock again for local items
+                     const available = item.variant.quantity;
+                     
+                     // CRITICAL FIX: Use type guard for null/undefined check
+                     if (typeof available === 'number' && item.quantity > available) { 
+                         
+                         if (available <= 0) {
+                             itemsToRemove.push(item.prod_variant_id);
+                             toast.error(`"${item.variant.product.prod_name}" removed: Out of stock`);
+                             isValid = false;
+                         } else {
+                             // Adjust quantity locally
+                             item.quantity = available;
+                             toast.error(`"${item.variant.product.prod_name}" quantity adjusted to ${available}.`);
+                             isValid = false;
+                         }
+                     }
+                 }
+                 
+                 if (itemsToRemove.length > 0) {
+                     localCart.items = localCart.items.filter(
+                         item => !itemsToRemove.some(invalid => invalid === item.prod_variant_id)
+                     );
+                     
+                     saveLocalCart(localCart);
+                     setCart(localCart as unknown as Cart);
+                     
+                     // Toast handled inside the loop
+                     isValid = false;
+                 }
+             }
+         } catch (err: any) {
+             setError(err.response?.data?.message || 'Failed to validate cart items.');
+             isValid = false;
+         } finally {
+             setCartLoading(false);
+         }
+         
+         return isValid;
+    }, [cart, isAuthenticated, getClient, checkProductValidity, fetchCart]);
 
 
     useEffect(() => {
         if (!isAuthLoading) {
             fetchCart();
             
-            if (isAuthenticated) {
-                syncGuestCartWithUser();
-            }
+            // Note: Login sync is now handled by the 'user-logged-in' event listener
         }
-    }, [isAuthLoading, isAuthenticated, fetchCart, syncGuestCartWithUser]);
+    }, [isAuthLoading, fetchCart]);
 
 
     const contextValue: CartContextType = useMemo(() => ({
