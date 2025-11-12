@@ -1,7 +1,7 @@
 // src/app/product/[id]/client-page.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'; 
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { FaShoppingCart, FaTags, FaBox, FaSpinner, FaCheckCircle, FaRegClock, FaPaw, FaHeart, FaListAlt, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { usePublicProductService } from '@/services/public/productService';
@@ -15,7 +15,7 @@ import { useWishlistService } from '@/services/public/wishlistService';
 import { useAuth } from '@/context/AuthContext';
 
 const PRIMARY_COLOR = 'var(--color-primary, #FF6B35)';
-const COLLAPSED_HEIGHT_PIXELS = 144; 
+const COLLAPSED_HEIGHT_PIXELS = 144;
 
 // Renamed component
 const ProductDetailPageClient: React.FC = () => {
@@ -39,11 +39,11 @@ const ProductDetailPageClient: React.FC = () => {
     const [isAddingToCart, setIsAddingToCart] = useState(false);
     const [wishlistItem, setWishlistItem] = useState<any | null>(null);
     const [isWishlistUpdating, setIsWishlistUpdating] = useState(false);
-    
+
     // State for description expansion
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [needsExpansionButton, setNeedsExpansionButton] = useState(false);
-    
+
     const descriptionRef = useRef<HTMLDivElement>(null);
 
 
@@ -65,8 +65,6 @@ const ProductDetailPageClient: React.FC = () => {
             if (data.variants && data.variants.length > 0) {
                 const defaultVariant = data.variants[0];
                 setSelectedVariantId(defaultVariant.id);
-                const initialImage = findBestImage(defaultVariant.images) || findBestImage(data.images);
-                setCurrentImage(initialImage);
             } else {
                 setSelectedVariantId(data.id);
                 setCurrentImage(findBestImage(data.images));
@@ -109,22 +107,11 @@ const ProductDetailPageClient: React.FC = () => {
         }
     }, [product?.description, isDescriptionExpanded, loading]);
 
-    // 3. Identify Selected Variant/Pricing & Update Image
+    // 3. Identify Selected Variant/Pricing
     const selectedVariant: ProdVariant | undefined = useMemo(() => {
         if (!product?.variants) return undefined;
         return product.variants.find(v => v.id === selectedVariantId);
     }, [product?.variants, selectedVariantId]);
-
-    // Effect to update image when the selected variant changes
-    useEffect(() => {
-        if (selectedVariant) {
-            const bestImage = findBestImage(selectedVariant.images) || findBestImage(product?.images);
-            setCurrentImage(bestImage);
-        } else if (product) {
-            setCurrentImage(findBestImage(product.images));
-        }
-    }, [selectedVariant, product?.images, product]);
-
 
     // --- TYPE-SAFE PRICE CALCULATION ---
     const finalPrice = useMemo(() => {
@@ -156,6 +143,51 @@ const ProductDetailPageClient: React.FC = () => {
         return parseFloat(String(priceValue || 0));
     }, [selectedVariant, product]);
     // --- END TYPE-SAFE PRICE CALCULATION ---
+
+    // === START IMAGE FALLBACK LOGIC (MOVED HERE) ===
+    const galleryImages: ProductImage[] = useMemo(() => {
+        const imagesMap = new Map<string, ProductImage>();
+        const productVariants = product?.variants || [];
+
+        const addImages = (imgs: ProductImage[] | undefined) => {
+            if (imgs && Array.isArray(imgs)) {
+                imgs.forEach(img => {
+                    if (img.image_url) imagesMap.set(img.image_url, img);
+                });
+            }
+        };
+        
+        // 1. First, try to add images from the SELECTED variant
+        addImages(selectedVariant?.images);
+        
+        // 2. If the selected variant has NO images, check ALL variants for images
+        if (imagesMap.size === 0 && product?.has_variants && productVariants.length > 0) {
+            // Check all variants for images
+            for (const variant of productVariants) {
+                if (variant.images && Array.isArray(variant.images) && variant.images.length > 0) {
+                    addImages(variant.images);
+                    // We found images on another variant, use them and stop searching variants
+                    // We can't break here if we want to include ALL available variant images in the gallery
+                }
+            }
+        }
+        
+        // 3. If still no images, fallback to product-level images
+        if (imagesMap.size === 0) {
+            addImages(product?.images);
+        }
+        
+        return Array.from(imagesMap.values());
+    }, [selectedVariant, product?.images, product?.variants, product?.has_variants]);
+    // === END IMAGE FALLBACK LOGIC ===
+    
+    // Effect to update image when the selected variant changes
+    // This is now safe because galleryImages is defined above.
+    useEffect(() => {
+        const bestImage = findBestImage(galleryImages);
+        setCurrentImage(bestImage);
+    }, [selectedVariant, product?.images, product, galleryImages]);
+
 
     // 4. Handle Add to Cart
     const handleAddToCart = async () => {
@@ -214,20 +246,6 @@ const ProductDetailPageClient: React.FC = () => {
         return null;
     }, [basePrice, finalPrice]);
 
-    const galleryImages: ProductImage[] = useMemo(() => {
-        const imagesMap = new Map<string, ProductImage>();
-        const addImages = (imgs: ProductImage[] | undefined) => {
-            if (imgs) {
-                imgs.forEach(img => {
-                    if (img.image_url) imagesMap.set(img.image_url, img);
-                });
-            }
-        };
-        addImages(selectedVariant?.images);
-        addImages(product?.images);
-        return Array.from(imagesMap.values());
-    }, [selectedVariant?.images, product?.images, product]);
-
     if (loading) return <LoadingSpinner />;
     if (apiError || !product) return <div className="p-8 text-center text-red-600">{apiError || "Product not found."}</div>;
 
@@ -255,7 +273,7 @@ const ProductDetailPageClient: React.FC = () => {
                                 {discountPercentage}% OFF
                             </span>
                         )}
-                            <button
+                        <button
                             onClick={handleToggleWishlist}
                             disabled={isWishlistUpdating || !selectedVariantId}
                             className="absolute top-3 right-3 p-2 rounded-full bg-white shadow-xl hover:scale-110 transition-transform z-10 disabled:opacity-50"
@@ -264,33 +282,31 @@ const ProductDetailPageClient: React.FC = () => {
                                 <FaSpinner className='w-4 h-4 animate-spin text-gray-400' />
                             ) : (
                                 <FaHeart
-                                    className={`w-4 h-4 transition-colors ${
-                                        wishlistItem ? 'text-red-500 fill-current' : 'text-gray-400 hover:text-red-500'
-                                    }`}
+                                    className={`w-4 h-4 transition-colors ${wishlistItem ? 'text-red-500 fill-current' : 'text-gray-400 hover:text-red-500'
+                                        }`}
                                 />
                             )}
                         </button>
                     </div>
 
                     {/* Vertical Thumbnail gallery */}
-                    {galleryImages.length > 1 && (
+                    {galleryImages.length > 0 && (
                         <div className="flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto space-x-2 md:space-x-0 md:space-y-2 p-1 border-t md:border-t-0 md:border-l border-gray-100 flex-shrink-0">
                             {galleryImages.map((img, idx) => (
                                 <div
                                     key={img.id || idx}
                                     onClick={() => setCurrentImage(img)}
-                                    className={`w-16 h-16 flex-shrink-0 border-2 rounded-md cursor-pointer overflow-hidden transition-colors shadow-sm ${
-                                        currentImage?.image_url === img.image_url
+                                    className={`w-16 h-16 flex-shrink-0 border-2 rounded-md cursor-pointer overflow-hidden transition-colors shadow-sm ${currentImage?.image_url === img.image_url
                                             ? `border-[${PRIMARY_COLOR}] shadow-md`
                                             : 'border-gray-200 hover:border-gray-400'
-                                    }`}
+                                        }`}
                                     style={{
-                                         borderColor: currentImage?.image_url === img.image_url ? PRIMARY_COLOR : '#d1d5db',
+                                        borderColor: currentImage?.image_url === img.image_url ? PRIMARY_COLOR : '#d1d5db',
                                     }}
                                 >
                                     <img
                                         src={getStorageUrl(img.image_url) || ''}
-                                        alt={`${product.prod_name} - view ${idx+1}`}
+                                        alt={`${product.prod_name} - view ${idx + 1}`}
                                         className="w-full h-full object-cover"
                                     />
                                 </div>
@@ -306,9 +322,9 @@ const ProductDetailPageClient: React.FC = () => {
                         <Link href={`/brands?id=${product.brand_id}`} className="text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors flex items-center">
                             <FaPaw className='mr-2 w-4 h-4 text-gray-500' /> {product.brand?.brand_name || 'Generic Brand'}
                         </Link>
-                           <Link href={`/products?category_id=${product.category?.id}`} className="text-sm text-blue-600 hover:text-blue-800 transition-colors block">
+                        <p className="text-sm text-blue-600 transition-colors block">
                             Category: {product.category?.sub_cat_name || 'Uncategorized'}
-                        </Link>
+                        </p>
                     </div>
 
                     {/* Price Section - Branded and Standard Size */}
@@ -347,7 +363,7 @@ const ProductDetailPageClient: React.FC = () => {
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Product Description (COLLAPSIBLE SECTION) */}
                     {product.description && (
                         <div className="mt-4 pt-3 border-t border-gray-100 space-y-3">
@@ -357,9 +373,8 @@ const ProductDetailPageClient: React.FC = () => {
                             {/* Collapsible Content Container */}
                             <div
                                 // Apply max height and overflow hidden when not expanded OR when expansion button is not needed
-                                className={`relative transition-all duration-500 ${
-                                    isDescriptionExpanded || !needsExpansionButton ? 'max-h-full' : 'max-h-36 overflow-hidden'
-                                }`}
+                                className={`relative transition-all duration-500 ${isDescriptionExpanded || !needsExpansionButton ? 'max-h-full' : 'max-h-36 overflow-hidden'
+                                    }`}
                                 ref={descriptionRef} // ⬅️ Attach the ref here
                             >
                                 {/* Renders the rich HTML content provided by the backend */}
@@ -395,7 +410,7 @@ const ProductDetailPageClient: React.FC = () => {
                             )}
                         </div>
                     )}
-                    
+
                     {/* Add to Cart CTA Group */}
                     <div className="flex space-x-3 pt-3 border-t border-gray-100">
 
@@ -412,7 +427,10 @@ const ProductDetailPageClient: React.FC = () => {
                                 value={quantity}
                                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                                 min="1"
-                                className="w-12 px-2 py-2 border-x border-gray-300 text-center font-medium focus:outline-none"
+                                // --- UPDATED CLASSES HERE ---
+                                // 'no-spinner' is a custom class defined below to hide browser arrows
+                                className="w-12 px-2 py-2 border-x border-gray-300 text-center font-medium focus:outline-none no-spinner"
+                                // ----------------------------
                             />
                             <button
                                 className="px-3 py-2 text-gray-700 hover:bg-gray-100 transition-colors font-medium"
@@ -449,7 +467,7 @@ const ProductDetailPageClient: React.FC = () => {
                             }
                         </p>
                         <p className="flex items-center">
-                            <FaRegClock className='mr-2 text-blue-500 w-4 h-4' /> Fast Delivery: 2-3 Days across UAE.
+                            <FaRegClock className='mr-2 text-blue-500 w-4 h-4' /> Fast Delivery: 2-3 Days across Abu Dhabi.
                         </p>
                     </div>
                 </div>

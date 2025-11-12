@@ -92,7 +92,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             const { name, value, type } = e.target;
 
-            if (type === 'number' || name.includes('price') || name === 'quantity') { // <<< Check for quantity
+            if (type === 'number' || name.includes('price') || name === 'quantity') { 
                 // Convert price/quantity inputs to numbers or null if empty
                 const numValue = value === '' ? null : Number(value);
                 setData(prev => ({ ...prev, [name]: numValue }));
@@ -106,8 +106,23 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
             setSaving(true);
             setLocalError(null);
 
+            // 1. Price Validation
             if (!data.price || isNaN(Number(data.price)) || Number(data.price) <= 0) {
                 setLocalError('Price is required and must be greater than 0.');
+                setSaving(false);
+                return;
+            }
+
+            // 2. Stock Quantity Validation (NEW REQUIRED CHECK)
+            if (data.quantity === null || data.quantity === undefined || isNaN(Number(data.quantity))) {
+                setLocalError('Stock Quantity is required and must be a number.');
+                setSaving(false);
+                return;
+            }
+            
+            // Optional: If you require stock to be >= 0
+            if (Number(data.quantity) < 0) {
+                setLocalError('Stock Quantity cannot be negative.');
                 setSaving(false);
                 return;
             }
@@ -117,7 +132,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                 price: Number(data.price),
                 offer_price: data.offer_price ? Number(data.offer_price) : null,
                 color_value: data.color_value || null,
-                quantity: data.quantity ? Number(data.quantity) : null, // <<< Sending quantity
+                quantity: Number(data.quantity), // Sending quantity (guaranteed to be a number by validation)
             };
 
             try {
@@ -162,7 +177,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                 name="variant_name"
                                 value={data.variant_name || ''}
                                 onChange={handleChange}
-                                placeholder="e.g., Red / Large / 128GB"
+                                placeholder="e.g., Red / Large / 120g"
                                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
@@ -222,18 +237,19 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                             </div>
                         </div>
 
-                        {/* Stock Quantity Input */}
+                        {/* Stock Quantity Input - Updated Label for required field */}
                         <div className="space-y-2">
                             <label htmlFor="quantity" className="block text-sm font-medium text-slate-700">
-                                Stock Qty (Optional)
+                                Stock Qty <span className="text-red-500">*</span>
                             </label>
                             <input
                                 id="quantity"
                                 type="number"
                                 step="1"
                                 name="quantity"
-                                value={data.quantity || ''}
+                                value={data.quantity !== null && data.quantity !== undefined ? data.quantity : ''}
                                 onChange={handleChange}
+                                required // Added HTML required attribute
                                 placeholder="0"
                                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                             />
@@ -326,7 +342,7 @@ const ProductVariantManager: React.FC<ProductVariantManagerProps> = ({
                                 <th className="px-4 py-2">Price</th>
                                 <th className="px-4 py-2">Offer Price</th>
                                 <th className="px-4 py-2">Color</th>
-                                <th className="px-4 py-2">Stock Qty</th> {/* ADDED Header */}
+                                <th className="px-4 py-2">Stock Qty</th>
                                 <th className="px-4 py-2">Images</th>
                                 <th className="px-4 py-2 text-right">Actions</th>
                             </tr>

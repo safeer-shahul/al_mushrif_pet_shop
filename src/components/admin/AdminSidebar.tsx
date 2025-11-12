@@ -58,7 +58,7 @@ const menuItems: MenuItem[] = [
             { name: 'Marquee Text', href: '/mushrif-admin/content/marquee', icon: FaBullhorn },
         ]
     },
-    { name: 'Users', href: '/mushrif-admin/users', icon: FaUsers },
+    // { name: 'Users', href: '/mushrif-admin/users', icon: FaUsers },
 ];
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, toggle, isMobile }) => {

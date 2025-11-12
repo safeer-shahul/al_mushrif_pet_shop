@@ -59,3 +59,13 @@ body, html, .app-font-strict {
     --tw-bg-opacity: 1; 
   }
 }
+
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spinner[type=number] {
+  -moz-appearance: textfield; /* Firefox */
+}

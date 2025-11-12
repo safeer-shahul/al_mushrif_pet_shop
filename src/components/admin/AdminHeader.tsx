@@ -69,12 +69,12 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({
         </div> */}
         
         {/* Notification bell - optional on mobile */}
-        <button className="relative p-1.5 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all hidden sm:block">
+        {/* <button className="relative p-1.5 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all hidden sm:block">
           <FaBell className="w-5 h-5" />
           <span className="absolute top-0 right-0 flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full border-2 border-white">
             3
           </span>
-        </button>
+        </button> */}
         
         {/* User menu */}
         <div className="flex items-center">

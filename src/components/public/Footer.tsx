@@ -12,49 +12,61 @@ const NAV_MENU_QUICK_LINKS = [
     { name: 'OUR BRANDS', href: '/brands' },
     { name: 'OFFER ZONE', href: '/products?offer_id=all' },
     { name: 'NEW ARRIVALS', href: '/products?sort=latest' },
-    // You can add account links here if you want them in the footer, 
-    // but typically only static links are included in the 'Quick Links' section.
-    // { name: 'My Account', href: '/user/profile' },
-    // { name: 'My Orders', href: '/user/orders' },
-    // { name: 'My Wishlist', href: '/user/wishlist' },
+    // Account links can be added here if needed
 ];
 
-// Updated Contact Info with telephone and WhatsApp links
-const CONTACT_INFO = [
+// Refactored Contact Info to group by Location 🐾
+const LOCATIONS_INFO = [
     {
-        icon: FaMapMarkerAlt,
-        text: 'Mushrif Mall, Basement, Shop-UP06, Abu Dhabi - UAE',
-        isLink: false,
+        name: 'Mushrif Mall Branch',
+        details: [
+            {
+                icon: FaMapMarkerAlt,
+                text: 'Mushrif Mall, Basement, Shop-UP06, Abu Dhabi - UAE',
+                isLink: false,
+            },
+            {
+                icon: FaPhone,
+                text: '+971 56 672 7748',
+                href: 'tel:+971566727748',
+                isLink: true,
+            },
+            {
+                icon: FaWhatsapp,
+                text: '+971 56 672 7748',
+                href: 'https://wa.me/971566727748',
+                isLink: true,
+                isPrimary: true, // For potential styling if needed
+            },
+        ],
     },
     {
-        icon: FaPhone,
-        text: '+971 56 672 7748',
-        href: 'tel:+971566727748',
-        isLink: true,
+        name: 'Deerfeilds Mall Branch',
+        details: [
+            {
+                icon: FaMapMarkerAlt,
+                text: 'Deerfeilds Mall, Level-1 Bahiya, Shaham, Abu Dhabi - UAE',
+                isLink: false,
+            },
+            {
+                icon: FaPhone,
+                text: '+971 56 924 4534',
+                href: 'tel:+971569244534',
+                isLink: true,
+            },
+            {
+                icon: FaWhatsapp,
+                text: '+971 56 924 4534',
+                href: 'https://wa.me/971569244534',
+                isLink: true,
+                isPrimary: true,
+            },
+        ],
     },
-    {
-        icon: FaWhatsapp,
-        text: '+971 56 672 7748 (WhatsApp Order)',
-        href: 'https://wa.me/971566727748',
-        isLink: true,
-    },
-    {
-        icon: FaMapMarkerAlt,
-        text: 'Deerfeields Mall, Level-1 Bahiya, Shaham, Abu Dhabi - UAE',
-        isLink: false,
-    },
-    {
-        icon: FaPhone,
-        text: '+971 56 924 4534',
-        href: 'tel:+971569244534',
-        isLink: true,
-    },
-    {
-        icon: FaWhatsapp,
-        text: '+971 56 924 4534 (WhatsApp Order)',
-        href: 'https://wa.me/971569244534',
-        isLink: true,
-    },
+];
+
+// Separate general contact info for consistency (e.g., Email)
+const GENERAL_CONTACT_INFO = [
     {
         icon: FaEnvelope,
         text: 'nassaraquarium@gmail.com',
@@ -89,11 +101,10 @@ const Footer: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Column 2: Quick Links - Updated to match Header structure */}
+                    {/* Column 2: Quick Links */}
                     <div>
                         <h4 className="text-base font-semibold mb-4" style={{ color: PRIMARY_COLOR }}>Quick Links</h4>
                         <ul className="space-y-2 text-sm">
-                            {/* Rendering the updated list of quick links */}
                             {NAV_MENU_QUICK_LINKS.map(item => (
                                 <li key={item.name}>
                                     <Link
@@ -109,29 +120,55 @@ const Footer: React.FC = () => {
                         </ul>
                     </div>
 
-                    {/* Column 3: Contact Info - Updated with correct link logic */}
+                    {/* Column 3: Contact Info - Updated with Grouping and Separators */}
                     <div>
-                        <h4 className="text-base font-semibold mb-4" style={{ color: PRIMARY_COLOR }}>Contact & Location</h4>
-                        <div className="space-y-3">
-                            {CONTACT_INFO.map(item => (
+                        <h4 className="text-base font-semibold mb-4" style={{ color: PRIMARY_COLOR }}>Contact & Locations 📍</h4>
+                        <div className="space-y-4">
+                            {LOCATIONS_INFO.map((location, index) => (
+                                <React.Fragment key={location.name}>
+                                    <div className="space-y-0.5">
+                                        {location.details.map(item => (
+                                            <div key={item.text} className="flex items-start space-x-3 text-sm">
+                                                <item.icon className="w-4 h-4 mt-1 flex-shrink-0" style={{ color: PRIMARY_COLOR }} />
+                                                <div className='flex flex-col text-gray-600'>
+                                                    {item.isLink ? (
+                                                        <a
+                                                            href={item.href}
+                                                            target={item.icon === FaWhatsapp ? "_blank" : "_self"}
+                                                            rel={item.icon === FaWhatsapp ? "noopener noreferrer" : undefined}
+                                                            className="leading-relaxed transition-colors"
+                                                            onMouseEnter={(e) => e.currentTarget.style.color = PRIMARY_COLOR}
+                                                            onMouseLeave={(e) => e.currentTarget.style.color = ''}
+                                                        >
+                                                            {item.text}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="leading-relaxed">{item.text}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {/* Divider Separator Line between locations */}
+                                    {index < LOCATIONS_INFO.length - 1 && (
+                                        <div className="border-t border-dashed border-gray-300 pt-4"></div>
+                                    )}
+                                </React.Fragment>
+                            ))}
+
+                            {/* General Contact (Email) */}
+                            {GENERAL_CONTACT_INFO.map(item => (
                                 <div key={item.text} className="flex items-start space-x-3 text-sm">
                                     <item.icon className="w-4 h-4 mt-1 flex-shrink-0" style={{ color: PRIMARY_COLOR }} />
                                     <div className='flex flex-col text-gray-600'>
-                                        {/* Use an anchor tag for links, otherwise use a span */}
-                                        {item.isLink ? (
-                                            <a
-                                                href={item.href}
-                                                target={item.icon === FaWhatsapp ? "_blank" : "_self"} // Open WhatsApp links in new tab
-                                                rel={item.icon === FaWhatsapp ? "noopener noreferrer" : undefined}
-                                                className="leading-relaxed transition-colors"
-                                                onMouseEnter={(e) => e.currentTarget.style.color = PRIMARY_COLOR}
-                                                onMouseLeave={(e) => e.currentTarget.style.color = ''}
-                                            >
-                                                {item.text}
-                                            </a>
-                                        ) : (
-                                            <span className="leading-relaxed">{item.text}</span>
-                                        )}
+                                        <a
+                                            href={item.href}
+                                            className="leading-relaxed transition-colors"
+                                            onMouseEnter={(e) => e.currentTarget.style.color = PRIMARY_COLOR}
+                                            onMouseLeave={(e) => e.currentTarget.style.color = ''}
+                                        >
+                                            {item.text}
+                                        </a>
                                     </div>
                                 </div>
                             ))}

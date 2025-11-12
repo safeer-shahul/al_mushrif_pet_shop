@@ -79,80 +79,52 @@ const StatCard: React.FC<{
 
 // Recent activity card component - REMAINS THE SAME
 const ActivityCard: React.FC<{ activity: ActivityItem[] }> = ({ activity }) => (
-  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-    <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
+        
+        {/* FIX: Use a single container with grid to ensure even distribution */}
+        {/* grid-cols-1 for mobile, lg:grid-cols-2 for desktop, using space-y-4 for vertical gap */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8">
+            {activity.map((item, index) => {
+                const isOrder = item.type === 'order_status_update' || item.type === 'new_order';
+                const Icon = isOrder ? FaShoppingCart : item.type === 'new_user' ? FaUserPlus : FaExclamationCircle;
+                const link = isOrder ? `/mushrif-admin/orders/detail?id=${item.id}` : '#'; 
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-      {/* Split activity into two columns for desktop view */}
-      {activity.reduce((acc, item, index) => {
-        const column = index % 2 === 0 ? 'col1' : 'col2';
-        if (!acc[column]) acc[column] = [];
-        acc[column].push(item);
-        return acc;
-      }, {} as Record<string, ActivityItem[]>).col1?.map((item, index) => {
-        const isOrder = item.type === 'order_status_update' || item.type === 'new_order';
-        const Icon = isOrder ? FaShoppingCart : item.type === 'new_user' ? FaUserPlus : FaExclamationCircle;
-        const link = isOrder ? `/mushrif-admin/orders/detail?id=${item.id}` : '#';
-
-        return (
-          <div key={index} className="flex items-start pb-3 border-b border-gray-100 last:border-b-0">
-            <div className="w-2 h-2 mt-1.5 rounded-full bg-primary flex-shrink-0"></div>
-            <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate flex items-center">
-                <Icon className='mr-2 w-4 h-4 text-blue-500 flex-shrink-0' />
-                <span dangerouslySetInnerHTML={{ __html: item.event }}></span>
-              </p>
-              <div className="flex text-xs text-gray-500 mt-1">
-                <span>{item.time}</span>
-                <span className="mx-1">•</span>
-                <span>{item.user}</span>
-                {isOrder && (
-                  <Link href={link} className="ml-2 text-blue-500 hover:text-blue-700 font-semibold underline">
-                    View
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-      {activity.length === 0 && <p className="text-gray-500 text-sm">No recent activity to display.</p>}
+                return (
+                    // Each activity item takes one slot in the grid.
+                    // The CSS grid flow will automatically balance the content across columns.
+                    <div 
+                        key={item.id} 
+                        className={`flex items-start pb-4 border-b border-gray-100 last:border-b-0 lg:border-b-0 
+                                    /* Add bottom margin on small screens, or on last item of the first column on large screens */
+                                    ${(index === activity.length - 1 && activity.length % 2 !== 0) ? 'mb-0' : 'mb-4'}
+                                    lg:mb-0
+                                `}
+                    >
+                        <div className="w-2 h-2 mt-1.5 rounded-full bg-primary flex-shrink-0"></div>
+                        <div className="ml-3 flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate flex items-center">
+                                <Icon className='mr-2 w-4 h-4 text-blue-500 flex-shrink-0' />
+                                <span dangerouslySetInnerHTML={{ __html: item.event }}></span>
+                            </p>
+                            <div className="flex text-xs text-gray-500 mt-1">
+                                <span>{item.time}</span>
+                                <span className="mx-1">•</span>
+                                <span>{item.user}</span>
+                                {isOrder && (
+                                    <Link href={link} className="ml-2 text-blue-500 hover:text-blue-700 font-semibold underline">
+                                        View
+                                    </Link>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+        
+        {activity.length === 0 && <p className="text-gray-500 text-sm">No recent activity to display.</p>}
     </div>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-      {activity.reduce((acc, item, index) => {
-        const column = index % 2 === 0 ? 'col1' : 'col2';
-        if (!acc[column]) acc[column] = [];
-        acc[column].push(item);
-        return acc;
-      }, {} as Record<string, ActivityItem[]>).col2?.map((item, index) => {
-        const isOrder = item.type === 'order_status_update' || item.type === 'new_order';
-        const Icon = isOrder ? FaShoppingCart : item.type === 'new_user' ? FaUserPlus : FaExclamationCircle;
-        const link = isOrder ? `/mushrif-admin/orders/detail?id=${item.id}` : '#';
-
-        return (
-          <div key={index + activity.length} className="flex items-start pb-3 border-b border-gray-100 last:border-b-0">
-            <div className="w-2 h-2 mt-1.5 rounded-full bg-primary flex-shrink-0"></div>
-            <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate flex items-center">
-                <Icon className='mr-2 w-4 h-4 text-blue-500 flex-shrink-0' />
-                <span dangerouslySetInnerHTML={{ __html: item.event }}></span>
-              </p>
-              <div className="flex text-xs text-gray-500 mt-1">
-                <span>{item.time}</span>
-                <span className="mx-1">•</span>
-                <span>{item.user}</span>
-                {isOrder && (
-                  <Link href={link} className="ml-2 text-blue-500 hover:text-blue-700 font-semibold underline">
-                    View
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  </div>
 );
 
 

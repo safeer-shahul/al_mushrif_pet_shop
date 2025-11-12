@@ -9,23 +9,23 @@ interface RootCategoryFormProps {
     initialData?: Partial<RootCategory>;
     isEditMode: boolean;
     onSave: (
-        data: Partial<RootCategory>, 
-        imageFile: File | null, 
-        imageRemoved: boolean, 
+        data: Partial<RootCategory>,
+        imageFile: File | null,
+        imageRemoved: boolean,
         id?: string
-    ) => Promise<void>; 
+    ) => Promise<void>;
     isLoading: boolean;
     error: string | null;
 }
 
-const RootCategoryForm: React.FC<RootCategoryFormProps> = ({ 
-    initialData, 
-    isEditMode, 
-    onSave, 
-    isLoading, 
-    error 
+const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
+    initialData,
+    isEditMode,
+    onSave,
+    isLoading,
+    error
 }) => {
-    const [formData, setFormData] = useState<Partial<RootCategory>>({}); 
+    const [formData, setFormData] = useState<Partial<RootCategory>>({});
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imageRemoved, setImageRemoved] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -50,7 +50,10 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
             setImageFile(file);
             setImageRemoved(false);
             setImagePreview(URL.createObjectURL(file));
-            setShowImageOptions(true);
+
+            if (showImageOptions) {
+                setShowImageOptions(false);
+            }
         }
     };
 
@@ -60,15 +63,15 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
         setImagePreview(null);
         setShowImageOptions(false);
     };
-    
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLocalLoading(true);
-        
+
         try {
-            await onSave(formData, imageFile, imageRemoved, formData.id); 
+            await onSave(formData, imageFile, imageRemoved, formData.id);
         } catch (e) {
-            console.error(e); 
+            console.error(e);
         } finally {
             setLocalLoading(false);
         }
@@ -107,8 +110,8 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                     </label>
                     <input
                         type="text"
-                        name="cat_name" 
-                        value={formData.cat_name || ''} 
+                        name="cat_name"
+                        value={formData.cat_name || ''}
                         onChange={handleChange}
                         required
                         placeholder="Enter category name"
@@ -116,25 +119,25 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                         disabled={isDisabled}
                     />
                 </div>
-                
+
                 {/* Image Upload */}
                 <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-700">
                         Category Image
                     </label>
-                    
+
                     {/* Image Preview Area */}
                     <div className="relative flex flex-col items-center p-6 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                         {imagePreview ? (
                             <div className="relative w-full">
                                 <div className="mx-auto w-48 h-48 mb-2 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                                    <img 
+                                    <img
                                         src={imagePreview}
-                                        alt="Category Preview" 
+                                        alt="Category Preview"
                                         className="w-full h-full object-cover"
                                     />
                                 </div>
-                                
+
                                 {/* Image Actions */}
                                 <div className="flex justify-center space-x-2">
                                     <button
@@ -179,7 +182,7 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                                 </p>
                             </div>
                         )}
-                        
+
                         {/* Hidden file input that shows when change is clicked */}
                         {showImageOptions && (
                             <div className="absolute inset-0 bg-gray-800/75 flex items-center justify-center rounded-lg">
@@ -211,7 +214,7 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                         )}
                     </div>
                 </div>
-                
+
                 {/* Description */}
                 <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-700">
@@ -228,7 +231,7 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                     />
                 </div>
             </div>
-            
+
             {/* Form Footer */}
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
                 <button
@@ -244,14 +247,14 @@ const RootCategoryForm: React.FC<RootCategoryFormProps> = ({
                     disabled={isDisabled}
                     className={`
                         px-4 py-2 rounded-lg text-white font-medium flex items-center
-                        ${isDisabled 
-                            ? 'bg-gray-400 cursor-not-allowed' 
+                        ${isDisabled
+                            ? 'bg-gray-400 cursor-not-allowed'
                             : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-sm'}
                     `}
                 >
                     <FaSave className="w-4 h-4 mr-2" />
-                    {isEditMode 
-                        ? (localLoading ? 'Updating...' : 'Update Category') 
+                    {isEditMode
+                        ? (localLoading ? 'Updating...' : 'Update Category')
                         : (localLoading ? 'Creating...' : 'Create Category')
                     }
                 </button>

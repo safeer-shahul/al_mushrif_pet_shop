@@ -278,7 +278,7 @@ const ProductFilterDrawer: React.FC<ProductFilterDrawerProps> = ({ isOpen, onClo
             {/* Mobile Overlay (Only visible when drawer is open) */}
             {isOpen && (
                 <div 
-                    className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden transition-opacity duration-300" 
+                    className="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300" 
                     onClick={onClose}
                 />
             )}

@@ -39,7 +39,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       {/* Mobile Overlay - appears when sidebar is open on mobile */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black bg-opacity-50 transition-opacity"
+          className="fixed inset-0 z-20 bg-black/50 transition-opacity"
           onClick={() => setSidebarOpen(false)}
         />
       )}

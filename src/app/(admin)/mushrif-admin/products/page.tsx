@@ -209,7 +209,7 @@ const ProductListPage: React.FC = () => {
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'deactive')}
                             disabled={loading}
-                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                            className="block w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                         >
                             <option value="all">All Statuses</option>
                             <option value="active">Active (Enabled)</option>

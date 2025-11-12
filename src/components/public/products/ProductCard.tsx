@@ -19,39 +19,37 @@ interface ProductCardProps {
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     const { getStorageUrl } = useCategoryService();
     const { addItem, cartLoading, setIsCartDrawerOpen } = useCart();
-    const { isAuthenticated, user } = useAuth();
-    const { openLoginModal } = useModal(); 
+    const { isAuthenticated } = useAuth();
+    const { openLoginModal } = useModal();
     const { addToWishlist, removeFromWishlist, checkWishlistStatus } = useWishlistService();
     const router = useRouter();
 
     const [wishlistItem, setWishlistItem] = useState<any | null>(null);
     const [isHovered, setIsHovered] = useState(false);
+    const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
     const isWishlisted = !!wishlistItem;
 
-    const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
-
-    // Global stock check: checks if ALL variants are out of stock OR if base_quantity is 0
+    // Check stock status
     const isOutOfStock = useMemo(() => {
         if (product.variants && product.variants.length > 0) {
             return product.variants.every(v =>
-                (v.quantity !== undefined && v.quantity !== null && v.quantity <= 0)
+                v.quantity !== undefined && v.quantity !== null && v.quantity <= 0
             );
         }
-        // Fallback check for non-variant products using base_quantity
         return product.base_quantity !== undefined && product.base_quantity !== null && product.base_quantity <= 0;
     }, [product]);
 
-    const isProductDisabled = useMemo(() => {
-        return product.is_disabled === true;
-    }, [product]);
+    const isProductDisabled = useMemo(() => product.is_disabled === true, [product]);
 
+    // Normalize variants
     const variants = useMemo(() => {
         if (product.variants && product.variants.length > 0) {
             return product.variants.map(variant => ({
                 ...variant,
                 price: parseFloat(String(variant.price || 0)),
-                offer_price: variant.offer_price !== null && variant.offer_price !== undefined ?
-                    parseFloat(String(variant.offer_price)) : null,
+                offer_price: variant.offer_price !== null && variant.offer_price !== undefined
+                    ? parseFloat(String(variant.offer_price))
+                    : null,
             }));
         }
 
@@ -61,11 +59,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 prod_id: product.id,
                 variant_name: "Default",
                 price: parseFloat(String(product.base_price || 0)),
-                offer_price: product.base_offer_price !== null && product.base_offer_price !== undefined ?
-                    parseFloat(String(product.base_offer_price)) : null,
+                offer_price: product.base_offer_price !== null && product.base_offer_price !== undefined
+                    ? parseFloat(String(product.base_offer_price))
+                    : null,
                 color_value: null,
-                // Using the correct base_quantity field from the product context (which relies on the implicit variant)
-                quantity: product.base_quantity, 
+                quantity: product.base_quantity,
                 images: product.images,
             } as ProdVariant];
         }
@@ -92,12 +90,18 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         return null;
     }, [basePrice, offerPrice]);
 
-    // Check stock for the currently selected/default variant
     const isVariantOutOfStock = selectedVariant.quantity !== undefined &&
         selectedVariant.quantity !== null &&
         selectedVariant.quantity <= 0;
 
+    // ✅ FIXED IMAGE LOGIC — Handles variant and fallback images
     const variantImages = useMemo(() => {
+        console.log('Product:', product.prod_name);
+        console.log('Product images:', product.images);
+        console.log('Selected variant:', selectedVariant);
+        console.log('All variants:', product.variants);
+
+        // First, try to get images from the selected variant
         let images: any[] = selectedVariant?.images || [];
 
         if (typeof images === 'string') {
@@ -112,30 +116,52 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             images = [];
         }
 
-        if (images.length > 0) {
-            return images;
+        console.log('Selected variant images after parsing:', images);
+
+        // If selected variant has no images, try to find images from ANY variant
+        if (images.length === 0 && product.variants && product.variants.length > 0) {
+            for (const variant of product.variants) {
+                let variantImages = variant.images || [];
+
+                if (typeof variantImages === 'string') {
+                    try {
+                        variantImages = JSON.parse(variantImages);
+                    } catch (e) {
+                        continue;
+                    }
+                }
+
+                if (Array.isArray(variantImages) && variantImages.length > 0) {
+                    console.log('Found images in variant:', variant.variant_name, variantImages);
+                    images = variantImages;
+                    break;
+                }
+            }
         }
 
-        if (product.images && product.images.length > 0) {
+        // If still no images, fallback to product-level images
+        if (images.length === 0 && product.images && product.images.length > 0) {
+            console.log('Using product-level images:', product.images);
             return product.images;
         }
 
-        return [];
-    }, [product.images, selectedVariant]);
+        console.log('Final images:', images);
+        return images;
+    }, [product.images, product.variants, selectedVariant]);
 
     const primaryImage = variantImages.find(img => img.is_primary) || variantImages[0];
     const secondaryImage = variantImages[1] || primaryImage;
-
     const displayImage = isHovered && variantImages.length > 1 ? secondaryImage : primaryImage;
     const imageUrl = getStorageUrl(displayImage?.image_url || null);
 
+    // Wishlist check
     useEffect(() => {
         const checkStatus = async () => {
             if (isAuthenticated && selectedVariant) {
                 try {
                     const item = await checkWishlistStatus(selectedVariant.id);
                     setWishlistItem(item);
-                } catch (err) {
+                } catch {
                     setWishlistItem(null);
                 }
             } else {
@@ -145,6 +171,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         checkStatus();
     }, [isAuthenticated, selectedVariant, checkWishlistStatus]);
 
+    // Wishlist toggle
     const handleToggleWishlist = async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -171,6 +198,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         }
     };
 
+    // Add to cart
     const handleAddToCart = async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -194,6 +222,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         }
     };
 
+    // Variant switch
     const handleVariantChange = (e: React.MouseEvent, index: number) => {
         e.preventDefault();
         e.stopPropagation();
@@ -207,15 +236,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
-
-                {/* Image Section - Fixed Aspect Ratio */}
+                {/* Image Section */}
                 <div className="relative w-full pt-[100%] bg-gray-50 overflow-hidden">
                     {imageUrl ? (
                         <img
                             src={imageUrl}
                             alt={product.prod_name}
-                            className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ${(isVariantOutOfStock || isProductDisabled) ? 'opacity-60' : ''
-                                } ${isHovered ? 'scale-105' : 'scale-100'}`}
+                            className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ${(isVariantOutOfStock || isProductDisabled) ? 'opacity-60' : ''} ${isHovered ? 'scale-105' : 'scale-100'}`}
                         />
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
@@ -223,14 +250,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                         </div>
                     )}
 
-                    {/* Sale Badge */}
                     {discountPercent && (
                         <div className="absolute top-3 left-3 bg-[#FF0000] text-white text-xs font-bold px-3 py-1.5 rounded">
                             {discountPercent}% Off
                         </div>
                     )}
 
-                    {/* Wishlist Icon */}
+                    {/* Wishlist */}
                     <button
                         onClick={handleToggleWishlist}
                         className="absolute top-3 right-3 p-2 rounded-full bg-white shadow-md hover:scale-110 transition-transform z-10"
@@ -239,9 +265,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                         <FaHeart className={`w-4 h-4 transition-colors ${isWishlisted ? 'text-red-500 fill-current' : 'text-gray-400'}`} />
                     </button>
 
-                    {/* Stock Status Badge */}
                     {(isVariantOutOfStock || isProductDisabled) && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                             <span className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold">
                                 {isVariantOutOfStock ? 'OUT OF STOCK' : 'UNAVAILABLE'}
                             </span>
@@ -249,78 +274,59 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                     )}
                 </div>
 
-                {/* Content Section - Use flex-1 to occupy all available vertical space */}
+                {/* Product Info */}
                 <div className="py-1 px-3 flex-1 flex flex-col justify-start">
-
-                    {/* Price with Discount Badge */}
-                    <div className="flex-shrink-0">
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-sm md:text-xl font-bold text-gray-900">
-                                AED {finalPrice.toFixed(2)}
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-sm md:text-lg font-bold text-gray-900">
+                            AED {finalPrice.toFixed(2)}
+                        </span>
+                        {offerPrice !== null && (
+                            <span className="text-xs md:text-sm text-gray-400 line-through">
+                                AED {basePrice.toFixed(2)}
                             </span>
-                            {offerPrice !== null && (
-                                <span className="text-xs md:text-sm text-gray-400 line-through">
-                                    AED {basePrice.toFixed(2)}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Product Title - Fixed height area for 2 lines of text (approx 48px) */}
-                    <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-2 flex-shrink-0 h-12">
-                        {product.prod_name}
-                    </h3>
-
-                    {/* Variant Selector - Scrollable Container for Mobile/Many Variants */}
-                    <div
-                        className={`mb-3 flex-shrink-0`}
-                        onClick={e => e.stopPropagation()}
-                    >
-                        {product.has_variants === true && variants.length > 1 && (
-                            <div
-                                className="flex gap-2 overflow-x-auto pb-1"
-                                style={{ WebkitOverflowScrolling: 'touch' }} // iOS smooth scrolling
-                            >
-                                {variants.map((variant, index) => {
-                                    // FIX: Check if quantity is a number (not null or undefined) before comparing to 0
-                                    const isOutOfStock = typeof variant.quantity === 'number' && variant.quantity <= 0; 
-                                    const percentOff = variant.offer_price !== null && variant.price > 0
-                                        ? Math.round(((variant.price - variant.offer_price) / variant.price) * 100)
-                                        : null;
-
-                                    return (
-                                        <button
-                                            key={variant.id}
-                                            type="button"
-                                            onClick={(e) => handleVariantChange(e, index)}
-                                            disabled={isOutOfStock}
-                                            className={`relative overflow-hidden rounded-md flex-shrink-0 transition-all ${isOutOfStock ? 'opacity-40 cursor-not-allowed' : ''
-                                                }`}
-                                        >
-                                            <div className={`px-3 py-1.5 text-xs font-semibold transition-colors ${selectedVariantIndex === index
-                                                ? 'bg-black text-white'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                                }`}>
-                                                {variant.variant_name || 'Default'}
-                                            </div>
-                                            {percentOff && (
-                                                <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1 rounded-bl-md leading-none">
-                                                    {percentOff}%
-                                                </div>
-                                            )}
-                                            {isOutOfStock && (
-                                                <div className="absolute inset-0 bg-gray-500 opacity-20"></div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
                         )}
                     </div>
 
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2 line-clamp-2 flex-shrink-0 min-h-12">
+                        {product.prod_name}
+                    </h3>
+
+                    {/* Variant Selector */}
+                    {product.has_variants && variants.length > 1 && (
+                        <div className="mb-3 flex gap-2 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                            {variants.map((variant, index) => {
+                                const isOutOfStock = typeof variant.quantity === 'number' && variant.quantity <= 0;
+                                const percentOff = variant.offer_price !== null && variant.price > 0
+                                    ? Math.round(((variant.price - variant.offer_price) / variant.price) * 100)
+                                    : null;
+
+                                return (
+                                    <button
+                                        key={variant.id}
+                                        type="button"
+                                        onClick={(e) => handleVariantChange(e, index)}
+                                        disabled={isOutOfStock}
+                                        className={`relative overflow-hidden rounded-md flex-shrink-0 transition-all ${isOutOfStock ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                    >
+                                        <div className={`px-3 py-1.5 text-xs font-semibold transition-colors ${selectedVariantIndex === index
+                                            ? 'bg-black text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            }`}>
+                                            {variant.variant_name || 'Default'}
+                                        </div>
+                                        {percentOff && (
+                                            <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1 rounded-bl-md leading-none">
+                                                {percentOff}%
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
-                {/* Add to Cart Button - Fixed Height at the very bottom */}
+                {/* Add to Cart */}
                 <button
                     onClick={handleAddToCart}
                     disabled={isVariantOutOfStock || isProductDisabled || cartLoading}
