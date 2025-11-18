@@ -19,7 +19,7 @@ import BrandSlider from './BrandSlider'; // Import the Brand Slider
 const HomeSectionComponent: React.FC = () => {
     const { fetchPublicHomeSections } = usePublicContentService();
     // Renamed fetchRootCategories to the exposed alias (or actual name)
-    const { fetchAllRootCategories } = useCategoryService(); 
+    const { fetchPublicRootCategories } = useCategoryService(); 
     const { fetchAllPublicBrands } = usePublicBrandService();
     
     const [sections, setSections] = useState<HomeSection[]>([]); 
@@ -33,7 +33,7 @@ const HomeSectionComponent: React.FC = () => {
             // Use Promise.all to fetch all data concurrently for better performance
             const [fetchedSections, fetchedCategories, fetchedBrands] = await Promise.all([
                 fetchPublicHomeSections(),
-                fetchAllRootCategories(),
+                fetchPublicRootCategories(),
                 fetchAllPublicBrands(), 
             ]);
 
@@ -60,7 +60,7 @@ const HomeSectionComponent: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [fetchPublicHomeSections, fetchAllRootCategories, fetchAllPublicBrands]);
+    }, [fetchPublicHomeSections, fetchPublicRootCategories, fetchAllPublicBrands]);
 
     useEffect(() => {
         loadContent();

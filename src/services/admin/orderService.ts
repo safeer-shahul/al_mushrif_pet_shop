@@ -3,7 +3,7 @@ import { createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
 import { useCallback } from 'react';
 import { getCsrfToken } from '@/utils/ApiClient'; 
 import { Order } from '@/types/order';
-import { AxiosRequestConfig } from 'axios'; // Import for Axios types
+import { AxiosRequestConfig } from 'axios'; 
 
 const ADMIN_ORDER_API_ENDPOINT = '/admin/orders/all';
 const ADMIN_STATUS_API_ENDPOINT = '/admin/orders';
@@ -116,11 +116,33 @@ export const useAdminOrderService = () => {
             throw new Error(message);
         }
     }, [getClient]);
+    
+    /**
+     * 💡 NEW: Manually updates the payment status of a specific order to Paid.
+     */
+    const updatePaymentStatus = useCallback(async (id: string) => {
+        const api = getClient();
+        try {
+            await getCsrfToken();
+            
+            const payload = { 
+                payment_status: 'Paid', 
+            };
+            
+            const response = await api.post(`${ADMIN_DETAIL_API_ENDPOINT}/${id}/update-payment-status`, payload);
+            return response.data;
+        } catch (error: any) {
+            const message = error.response?.data?.message || error.message || 'Failed to update payment status.';
+            throw new Error(message);
+        }
+    }, [getClient]);
+
 
     return {
         fetchAllOrders,
         updateOrderStatus,
         fetchOrderById,
         returnStock,
+        updatePaymentStatus, 
     };
 };

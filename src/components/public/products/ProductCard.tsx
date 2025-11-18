@@ -96,12 +96,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
     // ✅ FIXED IMAGE LOGIC — Handles variant and fallback images
     const variantImages = useMemo(() => {
-        console.log('Product:', product.prod_name);
-        console.log('Product images:', product.images);
-        console.log('Selected variant:', selectedVariant);
-        console.log('All variants:', product.variants);
-
-        // First, try to get images from the selected variant
         let images: any[] = selectedVariant?.images || [];
 
         if (typeof images === 'string') {
@@ -115,8 +109,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         if (!Array.isArray(images)) {
             images = [];
         }
-
-        console.log('Selected variant images after parsing:', images);
 
         // If selected variant has no images, try to find images from ANY variant
         if (images.length === 0 && product.variants && product.variants.length > 0) {
@@ -132,7 +124,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 }
 
                 if (Array.isArray(variantImages) && variantImages.length > 0) {
-                    console.log('Found images in variant:', variant.variant_name, variantImages);
                     images = variantImages;
                     break;
                 }
@@ -141,11 +132,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
         // If still no images, fallback to product-level images
         if (images.length === 0 && product.images && product.images.length > 0) {
-            console.log('Using product-level images:', product.images);
             return product.images;
         }
 
-        console.log('Final images:', images);
         return images;
     }, [product.images, product.variants, selectedVariant]);
 
@@ -230,9 +219,10 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     };
 
     return (
-        <Link href={`/product/${product.id}`} passHref>
+        // FIX: Change slug-based link to query parameter link
+        <Link href={`/product/detail?id=${product.id}`} passHref> 
             <div
-                className="relative bg-white rounded-lg min-h-86 md:min-h-112 overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col h-full group"
+                className="relative bg-white rounded-lg min-h-86 md:min-h-100 overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col h-full group"
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
@@ -287,7 +277,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                         )}
                     </div>
 
-                    <h3 className="text-sm font-semibold text-gray-800 mb-2 line-clamp-2 flex-shrink-0 min-h-12">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2 line-clamp-2 flex-shrink-0">
                         {product.prod_name}
                     </h3>
 
@@ -309,8 +299,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                                         className={`relative overflow-hidden rounded-md flex-shrink-0 transition-all ${isOutOfStock ? 'opacity-40 cursor-not-allowed' : ''}`}
                                     >
                                         <div className={`px-3 py-1.5 text-xs font-semibold transition-colors ${selectedVariantIndex === index
-                                            ? 'bg-black text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                ? 'bg-black text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                             }`}>
                                             {variant.variant_name || 'Default'}
                                         </div>
@@ -331,8 +321,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                     onClick={handleAddToCart}
                     disabled={isVariantOutOfStock || isProductDisabled || cartLoading}
                     className={`w-full py-3 text-white font-semibold text-sm flex items-center justify-center transition-all flex-shrink-0 ${isVariantOutOfStock || isProductDisabled || cartLoading
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-[var(--color-primary,#003a8c)] hover:bg-[var(--color-primary,#003a8c)]/90'
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-[var(--color-primary,#003a8c)] hover:bg-[var(--color-primary,#003a8c)]/90'
                         }`}
                 >
                     {isVariantOutOfStock ? (

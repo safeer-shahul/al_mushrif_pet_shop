@@ -17,16 +17,16 @@ import { FilterType } from '@/types/filter';
 const ProductCreatePage: React.FC = () => {
     const router = useRouter();
     const { createProduct } = useProductService();
-    
+
     // Dependencies hooks
-    const { fetchAllRootCategories, fetchAllSubCategories } = useCategoryService(); 
+    const { fetchAllRootCategories, fetchAllSubCategories } = useCategoryService();
     const { fetchAllBrands } = useBrandService();
     const { fetchAllFilterTypes } = useFilterService();
 
     // State for dependencies
     const [allBrands, setAllBrands] = useState<Brand[]>([]);
     const [allRootCategories, setAllRootCategories] = useState<RootCategory[]>([]); // Data is here
-    const [allSubCategories, setAllSubCategories] = useState<SubCategory[]>([]); 
+    const [allSubCategories, setAllSubCategories] = useState<SubCategory[]>([]);
     const [allFilterTypes, setAllFilterTypes] = useState<FilterType[]>([]);
     const [dependenciesLoading, setDependenciesLoading] = useState(true);
     const [dependenciesError, setDependenciesError] = useState<string | null>(null);
@@ -42,16 +42,16 @@ const ProductCreatePage: React.FC = () => {
             // FIX: Ensure all fetches run in parallel
             const [brands, rootCategories, subCategories, filters] = await Promise.all([
                 fetchAllBrands(),
-                fetchAllRootCategories(), 
-                fetchAllSubCategories(), 
+                fetchAllRootCategories(),
+                fetchAllSubCategories(),
                 fetchAllFilterTypes(),
             ]);
-            
+
             setAllBrands(brands);
-            setAllRootCategories(rootCategories); 
-            setAllSubCategories(subCategories); 
+            setAllRootCategories(rootCategories);
+            setAllSubCategories(subCategories);
             setAllFilterTypes(filters);
-            
+
         } catch (err: any) {
             setDependenciesError(err.message || 'Failed to load essential product dependencies.');
         } finally {
@@ -67,7 +67,7 @@ const ProductCreatePage: React.FC = () => {
     const handleSave = async (data: Partial<Product>) => {
         setApiError(null);
         setLocalLoading(true);
-        
+
         const payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'variants' | 'category' | 'brand' | 'images'> = {
             prod_id: data.prod_id || '',
             prod_name: data.prod_name || '',
@@ -88,7 +88,8 @@ const ProductCreatePage: React.FC = () => {
         try {
             const response = await createProduct(payload);
             alert(`Product ${response.prod_name} created successfully.`);
-            router.push(`/mushrif-admin/products/${response.id}`); 
+            // FIX APPLIED: Redirect to the edit page using query parameters, not path segment.
+            router.replace(`/mushrif-admin/products/edit?id=${response.id}`);
         } catch (err: any) {
             const errorMsg = err.message || 'A network error occurred.';
             setApiError(errorMsg);
@@ -102,18 +103,18 @@ const ProductCreatePage: React.FC = () => {
     }, []);
 
     if (dependenciesLoading) return <LoadingSpinner />;
-    
+
     return (
         <div className="space-y-6">
-            <ProductForm 
+            <ProductForm
                 isEditMode={false}
                 onSave={handleSave}
                 isLoading={localLoading}
                 error={apiError}
-                
+
                 allBrands={allBrands}
-                allRootCategories={allRootCategories} // FIX: Pass the fetched nested categories
-                allSubCategories={allSubCategories} 
+                allRootCategories={allRootCategories} 
+                allSubCategories={allSubCategories}
                 allFilterTypes={allFilterTypes}
                 dependenciesLoading={dependenciesLoading}
                 dependenciesError={dependenciesError}

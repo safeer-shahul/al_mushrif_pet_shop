@@ -1,3 +1,4 @@
+// src/app/(admin)/mushrif-admin/products/edit/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,20 +11,20 @@ import { Product, ProdVariant } from '@/types/product';
 import { useCategoryService } from '@/services/admin/categoryService';
 import { useBrandService } from '@/services/admin/brandService';
 import { useFilterService } from '@/services/admin/filterService';
-import { SubCategory, RootCategory } from '@/types/category'; 
+import { SubCategory, RootCategory } from '@/types/category';
 import { Brand } from '@/types/brand';
 import { FilterType } from '@/types/filter';
 
 // NOTE: This component is now at a static path: /mushrif-admin/products/edit
 const ProductEditPageClient: React.FC = () => {
-    const router = useRouter(); 
-    const searchParams = useSearchParams(); 
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const productId = searchParams.get('id'); // GET ID from '?id=...'
-    
+
     const { fetchProductById, updateProduct, createProduct } = useProductService(); // Ensure createProduct is available
-    
+
     // Dependencies hooks
-    const { fetchAllRootCategories, fetchAllSubCategories } = useCategoryService(); 
+    const { fetchAllRootCategories, fetchAllSubCategories } = useCategoryService();
     const { fetchAllBrands } = useBrandService();
     const { fetchAllFilterTypes } = useFilterService();
 
@@ -32,13 +33,13 @@ const ProductEditPageClient: React.FC = () => {
     const [productLoading, setProductLoading] = useState(true);
     const [productApiError, setProductApiError] = useState<string | null>(null);
     const [formLoading, setFormLoading] = useState(false);
-    
-    const [dataRefreshKey, setDataRefreshKey] = useState(0); 
-    
+
+    const [dataRefreshKey, setDataRefreshKey] = useState(0);
+
     // State for Dependencies
     const [allBrands, setAllBrands] = useState<Brand[]>([]);
     const [allRootCategories, setAllRootCategories] = useState<RootCategory[]>([]);
-    const [allSubCategories, setAllSubCategories] = useState<SubCategory[]>([]); 
+    const [allSubCategories, setAllSubCategories] = useState<SubCategory[]>([]);
     const [allFilterTypes, setAllFilterTypes] = useState<FilterType[]>([]);
     const [dependenciesLoading, setDependenciesLoading] = useState(true);
     const [dependenciesError, setDependenciesError] = useState<string | null>(null);
@@ -50,15 +51,15 @@ const ProductEditPageClient: React.FC = () => {
     // 💡 FIX: Revised fetchData to correctly handle Promise.all results based on mode
     const fetchData = useCallback(async () => {
         if (productId) {
-             setProductLoading(true);
+            setProductLoading(true);
         }
-       
+
         setDependenciesLoading(true);
         setProductApiError(null);
         setDependenciesError(null);
-        
+
         if (!productId) {
-            setCurrentProduct(null); 
+            setCurrentProduct(null);
         }
 
         try {
@@ -66,26 +67,26 @@ const ProductEditPageClient: React.FC = () => {
 
             const dependencyPromises = [
                 fetchAllBrands(),
-                fetchAllRootCategories(), 
-                fetchAllSubCategories(), 
+                fetchAllRootCategories(),
+                fetchAllSubCategories(),
                 fetchAllFilterTypes(),
             ];
-            
+
             const results = await Promise.all([
-                ...productPromise, 
+                ...productPromise,
                 ...dependencyPromises
             ]);
-            
+
             let dataIndex = 0;
             let productData: Product | null = null;
-            
+
             // 1. Check if product data was fetched (Edit Mode)
             if (productId) {
                 // The first result is Product data
                 productData = results[dataIndex] as Product;
                 dataIndex++;
             }
-            
+
             // 2. Assign the rest of the results (safe due to fixed order)
             const brands = results[dataIndex] as Brand[];
             const rootCategories = results[dataIndex + 1] as RootCategory[];
@@ -95,9 +96,9 @@ const ProductEditPageClient: React.FC = () => {
             setCurrentProduct(productData);
             setAllBrands(brands);
             setAllRootCategories(rootCategories);
-            setAllSubCategories(subCategories); 
+            setAllSubCategories(subCategories);
             setAllFilterTypes(filters);
-            
+
         } catch (err: any) {
             setProductApiError(err.message || 'Failed to load product details or dependencies.');
             console.error(err);
@@ -105,7 +106,7 @@ const ProductEditPageClient: React.FC = () => {
             setProductLoading(false);
             setDependenciesLoading(false);
         }
-    }, [productId, dataRefreshKey, fetchProductById, fetchAllBrands, fetchAllRootCategories, fetchAllSubCategories, fetchAllFilterTypes]); 
+    }, [productId, dataRefreshKey, fetchProductById, fetchAllBrands, fetchAllRootCategories, fetchAllSubCategories, fetchAllFilterTypes]);
 
     useEffect(() => {
         fetchData();
@@ -116,31 +117,35 @@ const ProductEditPageClient: React.FC = () => {
     const handleSave = async (data: Partial<Product>, id?: string) => {
         setProductApiError(null);
         setFormLoading(true);
-        
+
         const updateId = id || productId;
         const isEdit = !!updateId;
 
         try {
             let savedProduct: Product;
-            
+
             if (isEdit) {
                 if (!updateId) throw new Error("Update failed: Product ID is missing.");
                 savedProduct = await updateProduct(updateId, data);
             } else {
-                savedProduct = await createProduct(data as any); 
+                savedProduct = await createProduct(data as any);
             }
-            
+
             alert(`Product ${savedProduct.prod_name} saved successfully.`);
-            
+
             if (!isEdit) {
-                // CRITICAL FIX: On creation success, redirect to the Edit page using query parameter
+                // CRITICAL FIX 1: On creation success, redirect to the Edit page using query parameter
                 router.replace(`/mushrif-admin/products/edit?id=${savedProduct.id}`);
+
+                // CRITICAL FIX 2: Immediately trigger a full data refresh to reload the page state 
+                // with the new productId, preventing the blank page error on creation redirect.
+                handleFullDataRefresh();
             } else {
                 // Update local state and trigger full refresh for images/variants
-                setCurrentProduct(prev => (prev ? { ...prev, ...savedProduct } : savedProduct)); 
+                setCurrentProduct(prev => (prev ? { ...prev, ...savedProduct } : savedProduct));
                 handleFullDataRefresh();
             }
-            
+
         } catch (err: any) {
             setProductApiError(err.message || 'A network error occurred during product save.');
             console.error(err);
@@ -148,7 +153,7 @@ const ProductEditPageClient: React.FC = () => {
             setFormLoading(false);
         }
     };
-    
+
     // Handle updates from the Variant Manager component (local state update only)
     const handleVariantsUpdate = (updatedVariants: ProdVariant[]) => {
         if (currentProduct) {
@@ -158,33 +163,33 @@ const ProductEditPageClient: React.FC = () => {
 
 
     if (productLoading || dependenciesLoading) return <LoadingSpinner />;
-    
+
     const isEditMode = !!currentProduct?.id;
 
     // Check if we are in Edit mode but failed to load the product
     if (productId && !isEditMode) return <div className="text-red-500">Product not found or failed to load.</div>;
-    
+
     return (
         <div className="space-y-6">
-            <ProductForm 
-                initialData={currentProduct || {}} 
+            <ProductForm
+                initialData={currentProduct || {}}
                 isEditMode={isEditMode}
                 onSave={handleSave}
                 isLoading={formLoading}
                 error={productApiError}
-                
+
                 allBrands={allBrands}
-                allRootCategories={allRootCategories} 
-                allSubCategories={allSubCategories} 
+                allRootCategories={allRootCategories}
+                allSubCategories={allSubCategories}
                 allFilterTypes={allFilterTypes}
-                dependenciesLoading={false} 
+                dependenciesLoading={false}
                 dependenciesError={dependenciesError}
                 onFullDataRefresh={handleFullDataRefresh}
             />
 
             {/* Variant Manager only displays if in Edit mode and variants are enabled */}
             {isEditMode && currentProduct && currentProduct.has_variants && (
-                <ProductVariantManager 
+                <ProductVariantManager
                     product={currentProduct}
                     onVariantsUpdated={handleVariantsUpdate}
                     onFullDataRefresh={handleFullDataRefresh}

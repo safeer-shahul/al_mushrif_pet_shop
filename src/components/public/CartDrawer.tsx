@@ -216,7 +216,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
                         {/* Totals & Checkout Button (Sticky Footer) */}
                         <div className="p-5 bg-gray-50 border-t border-gray-200 sticky bottom-0">
-                            <h4 className="font-bold text-base text-gray-800 mb-3 flex items-center"><FaDollarSign className='mr-2 w-4 h-4 text-green-600'/> Order Summary</h4>
+                            <h4 className="font-bold text-base text-gray-800 mb-3 flex items-center"> Order Summary</h4>
                             <div className="space-y-1 text-sm text-gray-700">
                                 <div className="flex justify-between">
                                     <span>Subtotal (Base Price):</span>

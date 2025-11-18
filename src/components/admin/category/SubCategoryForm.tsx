@@ -1,9 +1,21 @@
 // src/components/admin/category/SubCategoryForm.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FaSave, FaTimes, FaUpload, FaImage, FaTrash } from 'react-icons/fa';
 import { RootCategory, SubCategory } from '@/types/category';
+
+interface FlatCategory {
+    id: string;
+    name: string;
+    path: string;
+    rootName: string; // Key for grouping
+    depth: number;
+}
+
+interface GroupedCategoriesType {
+    [key: string]: FlatCategory[];
+}
 
 interface SubCategoryFormProps {
     initialData?: Partial<SubCategory>;
@@ -18,6 +30,69 @@ interface SubCategoryFormProps {
     isLoading: boolean;
     error: string | null;
 }
+
+// Helper hook to process the mixed, potentially redundant category data
+const useFlattenedParents = (allParentCategories: (RootCategory | SubCategory)[], currentId?: string) => {
+    return useMemo(() => {
+        const uniqueFlatList: { [id: string]: FlatCategory } = {};
+
+        const getChildren = (category: any): any[] => {
+            if (category.sub_categories && Array.isArray(category.sub_categories)) return category.sub_categories;
+            if (category.children && Array.isArray(category.children)) return category.children;
+            return [];
+        };
+
+        const traverse = (category: any, path: string[], depth: number, rootName: string) => {
+            const categoryId = category.id || category.cat_id;
+            const categoryName = category.cat_name || category.sub_cat_name || "Unknown";
+            
+            if (!categoryId || categoryId === currentId) return;
+
+            const currentPath = [...path, categoryName];
+
+            // Add the current category to the unique list (Root or Sub)
+            if (!uniqueFlatList[categoryId]) {
+                uniqueFlatList[categoryId] = {
+                    id: categoryId,
+                    name: categoryName,
+                    path: currentPath.join(' > '),
+                    rootName: rootName,
+                    depth: depth
+                };
+            }
+            
+            // Recurse through children
+            const children = getChildren(category);
+            children.forEach(child => {
+                traverse(child, currentPath, depth + 1, rootName);
+            });
+        };
+
+        // 1. Traverse the full RootCategory tree structures for paths (first part of the array)
+        allParentCategories.filter(c => 'cat_name' in c).forEach(root => {
+            traverse(root, [], 0, root.cat_name);
+        });
+
+        const flatList = Object.values(uniqueFlatList);
+        
+        // 2. Group the flattened list by the top-level root name
+        const groupedMap: GroupedCategoriesType = {};
+        flatList.forEach(cat => {
+            if (!groupedMap[cat.rootName]) {
+                groupedMap[cat.rootName] = [];
+            }
+            groupedMap[cat.rootName].push(cat);
+        });
+
+        // 3. Sort the categories within each group by path (for correct hierarchy order)
+        Object.keys(groupedMap).forEach(key => {
+            groupedMap[key].sort((a, b) => a.path.localeCompare(b.path));
+        });
+
+        return groupedMap;
+    }, [allParentCategories, currentId]);
+};
+
 
 const SubCategoryForm: React.FC<SubCategoryFormProps> = ({ 
     initialData, 
@@ -34,7 +109,9 @@ const SubCategoryForm: React.FC<SubCategoryFormProps> = ({
     const [localLoading, setLocalLoading] = useState(false);
     const [showImageOptions, setShowImageOptions] = useState(false);
 
-    // Reset form when initialData changes
+    // Generate the grouped and path-aware list of parent categories
+    const parentCategoryMap = useFlattenedParents(allParentCategories, formData.id);
+
     useEffect(() => {
         if (initialData) {
             setFormData(initialData);
@@ -85,19 +162,6 @@ const SubCategoryForm: React.FC<SubCategoryFormProps> = ({
 
     const isDisabled = isLoading || localLoading;
 
-    // Separate root categories and sub categories with proper type checking
-    const rootCategories: RootCategory[] = [];
-    const subCategories: SubCategory[] = [];
-    
-    // Properly filter parent categories with type checking
-    allParentCategories.forEach(cat => {
-        if ('cat_name' in cat) {
-            rootCategories.push(cat as RootCategory);
-        } else if ('sub_cat_name' in cat && cat.id !== formData.id) {
-            subCategories.push(cat as SubCategory);
-        }
-    });
-
     return (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             {/* Form Header */}
@@ -138,24 +202,19 @@ const SubCategoryForm: React.FC<SubCategoryFormProps> = ({
                             disabled={isEditMode || isDisabled}
                         >
                             <option value="">-- Select Parent Category --</option>
-                            {rootCategories.length > 0 && (
-                                <optgroup label="Root Categories">
-                                    {rootCategories.map((cat) => (
-                                        <option key={cat.id} value={cat.id} className="font-medium">
-                                            {cat.cat_name}
-                                        </option>
-                                    ))}
-                                </optgroup>
-                            )}
-                            {subCategories.length > 0 && (
-                                <optgroup label="Sub Categories">
-                                    {subCategories.map((cat) => (
-                                        <option key={cat.id} value={cat.id}>
-                                            {cat.sub_cat_name}
-                                        </option>
-                                    ))}
-                                </optgroup>
-                            )}
+                            
+                            {/* Render Grouped Categories with Full Path */}
+                            {Object.entries(parentCategoryMap).map(([groupName, categories]) => (
+                                categories.length > 0 && (
+                                    <optgroup key={groupName} label={groupName}>
+                                        {categories.map((cat) => (
+                                            <option key={cat.id} value={cat.id} className="font-medium">
+                                                {cat.path} 
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                )
+                            ))}
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
                             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">

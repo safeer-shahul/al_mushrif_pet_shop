@@ -23,7 +23,7 @@ const STATIC_MENU_ITEMS = [
 
 const Header: React.FC = () => {
     const router = useRouter();
-    const { fetchAllRootCategories } = useCategoryService();
+    const { fetchPublicRootCategories } = useCategoryService();
     const { isAuthenticated, user, logout } = useAuth();
     const { cartCount, isCartDrawerOpen, setIsCartDrawerOpen } = useCart();
     // 💡 USE Modal Context instead of local state for the modal
@@ -46,7 +46,7 @@ const Header: React.FC = () => {
     const fetchCategories = useCallback(async () => {
         setNavLoading(true);
         try {
-            const categories = await fetchAllRootCategories();
+            const categories = await fetchPublicRootCategories();
             setRootCategories(categories);
         } catch (error) {
             console.error('Failed to load navigation categories:', error);
@@ -54,7 +54,7 @@ const Header: React.FC = () => {
         } finally {
             setNavLoading(false);
         }
-    }, [fetchAllRootCategories]);
+    }, [fetchPublicRootCategories]);
 
     useEffect(() => {
         fetchCategories();

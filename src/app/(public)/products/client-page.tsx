@@ -20,7 +20,7 @@ const ProductListingPageClient: React.FC = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { fetchProducts } = usePublicProductService();
-    const { fetchAllRootCategories } = useCategoryService();
+    const { fetchPublicRootCategories } = useCategoryService();
     const { setIsCartDrawerOpen } = useCart();
 
     // State for Product Data & Pagination
@@ -65,7 +65,7 @@ const ProductListingPageClient: React.FC = () => {
 
             const [productData, categoryData] = await Promise.all([
                 fetchProducts(validFilters),
-                fetchAllRootCategories()
+                fetchPublicRootCategories()
             ]);
             
             // PAGINATION/APPEND LOGIC
@@ -87,7 +87,7 @@ const ProductListingPageClient: React.FC = () => {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [fetchProducts, fetchAllRootCategories]);
+    }, [fetchProducts, fetchPublicRootCategories]);
 
 
     // 1. Sync state from URL parameters (runs whenever URL changes)

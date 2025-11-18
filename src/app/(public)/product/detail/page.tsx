@@ -1,8 +1,8 @@
-// src/app/product/[id]/client-page.tsx
+// src/app/product/detail/page.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react'; // <-- Suspense is imported
+import { useSearchParams } from 'next/navigation';
 import { FaShoppingCart, FaTags, FaBox, FaSpinner, FaCheckCircle, FaRegClock, FaPaw, FaHeart, FaListAlt, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { usePublicProductService } from '@/services/public/productService';
 import { useCart } from '@/context/CartContext';
@@ -14,13 +14,15 @@ import Link from 'next/link';
 import { useWishlistService } from '@/services/public/wishlistService';
 import { useAuth } from '@/context/AuthContext';
 
+// Define the primary color variable for easy styling consistency
 const PRIMARY_COLOR = 'var(--color-primary, #FF6B35)';
 const COLLAPSED_HEIGHT_PIXELS = 144;
 
-// Renamed component
-const ProductDetailPageClient: React.FC = () => {
-    const params = useParams();
-    const productId = params.id as string;
+// Separate the ProductDetailPage logic as a client component
+const ProductDetailPageContent: React.FC = () => {
+    // FIX: Retrieve ID from search parameters instead of route params
+    const searchParams = useSearchParams();
+    const productId = searchParams.get('id');
 
     // Services & Context
     const { fetchProductDetail } = usePublicProductService();
@@ -55,7 +57,13 @@ const ProductDetailPageClient: React.FC = () => {
 
     // 1. Fetch Product Data
     const loadProduct = useCallback(async () => {
-        if (!productId) return;
+        // FIX: Check for productId retrieved from search params
+        if (!productId) {
+            setLoading(false);
+            setApiError('Product ID is missing from the URL.');
+            return;
+        }
+
         setLoading(true);
         setApiError(null);
         try {
@@ -144,7 +152,7 @@ const ProductDetailPageClient: React.FC = () => {
     }, [selectedVariant, product]);
     // --- END TYPE-SAFE PRICE CALCULATION ---
 
-    // === START IMAGE FALLBACK LOGIC (MOVED HERE) ===
+    // === START IMAGE FALLBACK LOGIC ===
     const galleryImages: ProductImage[] = useMemo(() => {
         const imagesMap = new Map<string, ProductImage>();
         const productVariants = product?.variants || [];
@@ -166,8 +174,6 @@ const ProductDetailPageClient: React.FC = () => {
             for (const variant of productVariants) {
                 if (variant.images && Array.isArray(variant.images) && variant.images.length > 0) {
                     addImages(variant.images);
-                    // We found images on another variant, use them and stop searching variants
-                    // We can't break here if we want to include ALL available variant images in the gallery
                 }
             }
         }
@@ -182,7 +188,6 @@ const ProductDetailPageClient: React.FC = () => {
     // === END IMAGE FALLBACK LOGIC ===
     
     // Effect to update image when the selected variant changes
-    // This is now safe because galleryImages is defined above.
     useEffect(() => {
         const bestImage = findBestImage(galleryImages);
         setCurrentImage(bestImage);
@@ -246,7 +251,14 @@ const ProductDetailPageClient: React.FC = () => {
         return null;
     }, [basePrice, finalPrice]);
 
-    if (loading) return <LoadingSpinner />;
+    // Check if ID is missing or loading
+    if (!productId || loading) {
+         if (apiError) return <div className="p-8 text-center text-red-600">{apiError}</div>;
+         if (!productId) return <div className="p-8 text-center text-red-600">No product ID provided.</div>;
+         return <LoadingSpinner />;
+    }
+    
+    // Check if product failed to load
     if (apiError || !product) return <div className="p-8 text-center text-red-600">{apiError || "Product not found."}</div>;
 
     const shouldShowVariantOptions = product.has_variants === true && (product.variants?.length ?? 0) > 1;
@@ -476,4 +488,15 @@ const ProductDetailPageClient: React.FC = () => {
     );
 };
 
-export default ProductDetailPageClient;
+
+// The main Page Component (Server Component Wrapper).
+// We wrap the ProductDetailPageContent in Suspense to resolve the build error.
+const ProductDetailPage: React.FC = () => {
+    return (
+        <Suspense fallback={<LoadingSpinner />}>
+            <ProductDetailPageContent />
+        </Suspense>
+    );
+};
+
+export default ProductDetailPage;

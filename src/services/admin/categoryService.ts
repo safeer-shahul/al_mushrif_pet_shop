@@ -1,7 +1,7 @@
 import { useApiClient, getCsrfToken, createAuthenticatedClient, publicClient } from '@/utils/ApiClient';
 import { useAuth } from '@/context/AuthContext';
 import { RootCategory, SubCategory, RootCategoryIndexResponse, SubCategoryIndexResponse } from '@/types/category';
-import { useCallback } from 'react'; 
+import { useCallback } from 'react';
 
 const ROOT_CATEGORY_API_ENDPOINT = '/admin/root-categories';
 const SUB_CATEGORY_API_ENDPOINT = '/admin/sub-categories';
@@ -19,15 +19,15 @@ const SUB_CATEGORY_STATIC_EXPORT_ENDPOINT = '/public/sub-category-ids';
 export const fetchAllSubCategoryIdsForStaticExport = async (): Promise<string[]> => {
     try {
         // HITTING THE NEW PUBLIC ENDPOINT
-        const response = await publicClient.get<string[]>(SUB_CATEGORY_STATIC_EXPORT_ENDPOINT); 
-        
+        const response = await publicClient.get<string[]>(SUB_CATEGORY_STATIC_EXPORT_ENDPOINT);
+
         // The Laravel route returns a direct array of IDs
         const ids = Array.isArray(response.data) ? response.data : [];
-            
+
         return ids.map(id => id.toString());
     } catch (error) {
         console.error('Failed to fetch Sub Category IDs for static export (Check API endpoint security):', error);
-        return []; 
+        return [];
     }
 }
 
@@ -37,16 +37,16 @@ export const fetchAllSubCategoryIdsForStaticExport = async (): Promise<string[]>
  */
 export const fetchAllRootCategoryIdsForStaticExport = async (): Promise<string[]> => {
     try {
-        const response = await publicClient.get<RootCategory[]>(`/categories`); 
-        
+        const response = await publicClient.get<RootCategory[]>(`/categories`);
+
         const ids = (response.data || [])
             .map(category => category.id ? category.id.toString() : null)
             .filter((id): id is string => id !== null);
-            
+
         return ids;
     } catch (error) {
         console.error('Failed to fetch Root Category IDs for static export:', error);
-        return []; 
+        return [];
     }
 }
 
@@ -62,9 +62,9 @@ export const useCategoryService = () => {
     const getClient = useCallback((isFileUpload: boolean = false) => {
         const config = isFileUpload ? { omitContentType: true } : {};
         if (token) {
-            return createAuthenticatedClient(token, config); 
+            return createAuthenticatedClient(token, config);
         }
-        return publicClient; 
+        return publicClient;
     }, [token]);
 
     // 2. STABLE URL UTILITY
@@ -75,25 +75,37 @@ export const useCategoryService = () => {
     }, [storagePrefix]);
 
     // ---------------------------------------------------------------------
-    // REST OF HOOK FUNCTIONS (Unchanged)
+    // DEDICATED PUBLIC ACCESS METHOD (New)
     // ---------------------------------------------------------------------
+    const fetchPublicRootCategories = useCallback(async (): Promise<RootCategory[]> => {
+        try {
+            // *** ALWAYS use the unauthenticated publicClient here ***
+            const response = await publicClient.get<RootCategory[]>(`/categories`);
+            // The Laravel CatalogController returns the array directly
+            return response.data || [];
+        } catch (error: any) {
+            console.error('API Error in fetchPublicRootCategories:', error);
+            // Throw error but DO NOT fall back to admin endpoint
+            throw new Error(error.response?.data?.message || 'Failed to load public root categories.');
+        }
+    }, []); // No dependencies on 'token' or 'getClient'
 
     const fetchAllRootCategories = useCallback(async (): Promise<RootCategory[]> => {
         const api = getClient(false);
         try {
-            const response = await api.get<RootCategory[]>(`/categories`); 
+            const response = await api.get<RootCategory[]>(`/categories`);
             return response.data || [];
         } catch (error: any) {
             console.error('API Error in fetchAllRootCategories:', error);
             try {
-                const adminResponse = await api.get<RootCategoryIndexResponse>(ROOT_CATEGORY_API_ENDPOINT); 
+                const adminResponse = await api.get<RootCategoryIndexResponse>(ROOT_CATEGORY_API_ENDPOINT);
                 return adminResponse.data?.root_categories || [];
             } catch (adminError: any) {
                 throw new Error(adminError.response?.data?.message || 'Failed to load nested categories.');
             }
         }
     }, [getClient]);
-    
+
     const fetchAllSubCategories = useCallback(async (): Promise<SubCategory[]> => {
         const api = getClient(false);
         try {
@@ -103,11 +115,11 @@ export const useCategoryService = () => {
             throw new Error(error.response?.data?.message || 'Failed to load sub category data from the API.');
         }
     }, [getClient]);
-    
+
     const fetchRootCategoryById = useCallback(async (id: string): Promise<RootCategory> => {
         const api = getClient(false);
         try {
-            const response = await api.get<{ category: RootCategory }>(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`); 
+            const response = await api.get<{ category: RootCategory }>(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`);
             return response.data?.category;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to load root category details.');
@@ -118,7 +130,7 @@ export const useCategoryService = () => {
         const api = getClient(true);
         try {
             await getCsrfToken();
-            const response = await api.post(ROOT_CATEGORY_API_ENDPOINT, formData); 
+            const response = await api.post(ROOT_CATEGORY_API_ENDPOINT, formData);
             return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to create category.');
@@ -129,8 +141,8 @@ export const useCategoryService = () => {
         const api = getClient(true);
         try {
             await getCsrfToken();
-            formData.append('_method', 'PUT'); 
-            const response = await api.post(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`, formData); 
+            formData.append('_method', 'PUT');
+            const response = await api.post(`${ROOT_CATEGORY_API_ENDPOINT}/${id}`, formData);
             return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to update category.');
@@ -173,14 +185,14 @@ export const useCategoryService = () => {
         const api = getClient(true);
         try {
             await getCsrfToken();
-            formData.append('_method', 'PUT'); 
-            const response = await api.post(`${SUB_CATEGORY_API_ENDPOINT}/${id}`, formData); 
+            formData.append('_method', 'PUT');
+            const response = await api.post(`${SUB_CATEGORY_API_ENDPOINT}/${id}`, formData);
             return response.data;
         } catch (error: any) {
             throw new Error(error.response?.data?.message || 'Failed to update sub category.');
         }
     }, [getClient]);
-    
+
     const deleteSubCategory = useCallback(async (id: string) => {
         const api = getClient(false);
         try {
@@ -191,31 +203,32 @@ export const useCategoryService = () => {
             throw new Error(error.response?.data?.message || 'Failed to delete sub category.');
         }
     }, [getClient]);
-    
+
     const fetchAllParentCategories = useCallback(async (): Promise<(RootCategory | SubCategory)[]> => {
         const [roots, subs] = await Promise.all([
-            fetchAllRootCategories(), 
-            fetchAllSubCategories() 
+            fetchAllRootCategories(),
+            fetchAllSubCategories()
         ]);
-        
-        return [...roots, ...subs] as (RootCategory | SubCategory)[]; 
-    }, [fetchAllRootCategories, fetchAllSubCategories]); 
+
+        return [...roots, ...subs] as (RootCategory | SubCategory)[];
+    }, [fetchAllRootCategories, fetchAllSubCategories]);
 
 
     return {
-        fetchAllRootCategories, 
+        fetchAllRootCategories,
         fetchRootCategoryById,
         createRootCategory,
         updateRootCategory,
         deleteRootCategory,
-        
-        fetchAllSubCategories, 
+        fetchPublicRootCategories,
+
+        fetchAllSubCategories,
         fetchSubCategoryById,
         createSubCategory,
         updateSubCategory,
         deleteSubCategory,
-        
-        fetchAllParentCategories, 
+
+        fetchAllParentCategories,
         getStorageUrl
     };
 };
